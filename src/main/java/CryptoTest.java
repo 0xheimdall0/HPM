@@ -1,8 +1,11 @@
+import com.password4j.Argon2Function;
+import com.password4j.Hash;
+import com.password4j.types.Argon2;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
 import java.security.SecureRandom;
-import java.util.Arrays;
 import java.util.Base64;
 
 public class CryptoTest {
@@ -10,8 +13,12 @@ public class CryptoTest {
 
         String message = "My Secret!";
 
-        // Create a fake test key that's in a format accepted by AES
-        byte[] keyBytes = new byte[32];
+        // Create a key in a format accepted by AES, according to a master password
+        String masterPassword = "hunter2";
+        String salt = "myFixedSaltForNow";
+        Argon2Function argon2 = Argon2Function.getInstance(65536, 3, 4, 32, Argon2.ID);
+        Hash hash = argon2.hash(masterPassword, salt);
+        byte[] keyBytes = hash.getBytes();
         SecretKeySpec key = new SecretKeySpec(keyBytes, "AES");
 
         // Creates a random 12 byte number

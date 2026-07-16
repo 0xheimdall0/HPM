@@ -1,5 +1,6 @@
 import com.password4j.Argon2Function;
 import com.password4j.Hash;
+import com.password4j.Password;
 import com.password4j.types.Argon2;
 
 import javax.crypto.Cipher;
@@ -24,11 +25,13 @@ public class CryptoTest {
         entries.add(new PasswordEntry("Gmail", "test@gmail.com", "Test123!"));
         entries.add(new PasswordEntry("GitHub", "Test123", "MyPassword"));
 
+        // Turns the entries into a single string that can be easily encrypted
+        StringBuilder sb = new StringBuilder();
         for (PasswordEntry elt : entries) {
-            System.out.println(elt.label + " / " + elt.username);
+            sb.append(elt.label).append(",").append(elt.username).append(",").append(elt.password).append("\n");
         }
-
-        String message = "My Secret!";
+        String plainText = sb.toString();
+        System.out.println(plainText);
 
         // Create a key in a format accepted by AES, according to a master password
         String masterPassword = "hunter2";
@@ -49,7 +52,7 @@ public class CryptoTest {
 
         // Sets the "machine" to "encrypt", encrypts the message and spits out the random bytes
         cipher.init(Cipher.ENCRYPT_MODE, key, spec);
-        byte[] encrypted = cipher.doFinal(message.getBytes());
+        byte[] encrypted = cipher.doFinal(plainText.getBytes());
 
         // Save logic combines the nonce required to decrypt and the encrypted hash
         byte[] combined = new byte[nonce.length + encrypted.length];

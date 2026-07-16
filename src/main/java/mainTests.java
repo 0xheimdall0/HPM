@@ -3,7 +3,7 @@ import com.password4j.Password;
 
 public class mainTests {
     public static void main(String[] args) {
-        Hash hashTest = Password.hash("TestPassword123!").addRandomSalt().withArgon2();
-        System.out.println("Hash: " + hashTest);
+        PasswordEntry entry = new PasswordEntry("Gmail", "test@gmail.com", "Test123!");
+        System.out.println(entry.label + " / " + entry.username + " / " + entry.password);
     }
 }

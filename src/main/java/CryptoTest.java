@@ -8,12 +8,25 @@ import javax.crypto.spec.GCMParameterSpec;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.ArrayList;
+import java.util.List;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class CryptoTest {
     public static void main(String[] args) throws Exception {
+
+        // List to hold all the entries (PasswordEntry objects)
+        List<PasswordEntry> entries = new ArrayList<>();
+
+        // Add test entries
+        entries.add(new PasswordEntry("Gmail", "test@gmail.com", "Test123!"));
+        entries.add(new PasswordEntry("GitHub", "Test123", "MyPassword"));
+
+        for (PasswordEntry elt : entries) {
+            System.out.println(elt.label + " / " + elt.username);
+        }
 
         String message = "My Secret!";
 
@@ -37,13 +50,13 @@ public class CryptoTest {
         // Sets the "machine" to "encrypt", encrypts the message and spits out the random bytes
         cipher.init(Cipher.ENCRYPT_MODE, key, spec);
         byte[] encrypted = cipher.doFinal(message.getBytes());
-//
-//        // Save logic combines the nonce required to decrypt and the encrypted hash
+
+        // Save logic combines the nonce required to decrypt and the encrypted hash
         byte[] combined = new byte[nonce.length + encrypted.length];
         System.arraycopy(nonce, 0, combined, 0, nonce.length);
         System.arraycopy(encrypted, 0, combined, nonce.length, encrypted.length);
-//
-//        // Write the combination to the vault
+
+        // Write the combination to the vault
         Path file = Path.of("vault.dat");
         Files.write(file, combined);
 

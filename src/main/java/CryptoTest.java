@@ -8,6 +8,9 @@ import javax.crypto.spec.GCMParameterSpec;
 import java.security.SecureRandom;
 import java.util.Base64;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 public class CryptoTest {
     public static void main(String[] args) throws Exception {
 
@@ -33,12 +36,17 @@ public class CryptoTest {
         // Sets the "machine" to "encrypt", encrypts the message and spits out the random bytes
         cipher.init(Cipher.ENCRYPT_MODE, key, spec);
         byte[] encrypted = cipher.doFinal(message.getBytes());
+
+        // Creates a path variable and writes the encrypted bytes to the file
+        Path file = Path.of("vault.dat");
+        Files.write(file, encrypted);
+
+        byte[] fromFile = Files.readAllBytes(file);
         System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(encrypted));
 
         // Sets the "machine" to "decrypt", spits out the result
         cipher.init(Cipher.DECRYPT_MODE, key, spec);
-        byte[] decrypted = cipher.doFinal(encrypted);
+        byte[] decrypted = cipher.doFinal(fromFile);
         System.out.println("Decrypted: " + new String(decrypted));
-
     }
 }

@@ -6,6 +6,7 @@ import com.password4j.types.Argon2;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
+import java.nio.file.FileSystemNotFoundException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
@@ -75,8 +76,28 @@ public class CryptoTest {
         cipher.init(Cipher.DECRYPT_MODE, key, loadedSpec);
         byte[] decrypted = cipher.doFinal(cipherText);
 
+        String decryptedText = new String(decrypted);
+
+        // Split the decrypted text into separate strings
+        String[] elements = decryptedText.split("\n");
+
+        // Load the entries in the adequate format
+        List<PasswordEntry> loadedEntries = new ArrayList<>();
+        for (String elt : elements) {
+            String[] values = elt.split(",");
+            String label = values[0];
+            String username = values[1];
+            String password = values[2];
+            loadedEntries.add(new PasswordEntry(label, username, password));
+        }
+
+        // Test print
+        for (PasswordEntry e : loadedEntries) {
+            System.out.println("Loaded: " + e.label + " / " + e.username + "\n");
+        }
+
         // Output test
         System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(encrypted));
-        System.out.println("Decrypted: " + new String(decrypted));
+        System.out.println("Decrypted: " + decryptedText);
     }
 }

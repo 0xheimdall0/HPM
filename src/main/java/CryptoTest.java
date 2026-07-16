@@ -6,6 +6,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 
 import java.nio.file.Files;
@@ -36,17 +37,30 @@ public class CryptoTest {
         // Sets the "machine" to "encrypt", encrypts the message and spits out the random bytes
         cipher.init(Cipher.ENCRYPT_MODE, key, spec);
         byte[] encrypted = cipher.doFinal(message.getBytes());
-
-        // Creates a path variable and writes the encrypted bytes to the file
+//
+//        // Save logic combines the nonce required to decrypt and the encrypted hash
+        byte[] combined = new byte[nonce.length + encrypted.length];
+        System.arraycopy(nonce, 0, combined, 0, nonce.length);
+        System.arraycopy(encrypted, 0, combined, nonce.length, encrypted.length);
+//
+//        // Write the combination to the vault
         Path file = Path.of("vault.dat");
-        Files.write(file, encrypted);
+        Files.write(file, combined);
 
+        // Read from the vault
         byte[] fromFile = Files.readAllBytes(file);
-        System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(encrypted));
+
+        // Load and split the data
+        byte[] loadedNonce = Arrays.copyOfRange(fromFile, 0, nonce.length);
+        byte[] cipherText = Arrays.copyOfRange(fromFile, nonce.length, fromFile.length);
+        GCMParameterSpec loadedSpec = new GCMParameterSpec(128, loadedNonce);
 
         // Sets the "machine" to "decrypt", spits out the result
-        cipher.init(Cipher.DECRYPT_MODE, key, spec);
-        byte[] decrypted = cipher.doFinal(fromFile);
+        cipher.init(Cipher.DECRYPT_MODE, key, loadedSpec);
+        byte[] decrypted = cipher.doFinal(cipherText);
+
+        // Output test
+        System.out.println("Encrypted: " + Base64.getEncoder().encodeToString(encrypted));
         System.out.println("Decrypted: " + new String(decrypted));
     }
 }

@@ -13,6 +13,11 @@ public class LoadLogic {
         Path file = Path.of("vault.dat");
         SecretKeySpec key = DeriveKey.deriveKey(masterPassword);
 
+        // Check whether vault.dat is empty
+        if (!Files.exists(file) || Files.size(file) == 0) {
+            return new ArrayList<>();
+        }
+
         // Read from the vault
         byte[] fromFile = Files.readAllBytes(file);
 

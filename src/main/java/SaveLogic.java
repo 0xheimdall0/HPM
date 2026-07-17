@@ -14,7 +14,6 @@ public class SaveLogic {
             sb.append(elt.label).append(",").append(elt.username).append(",").append(elt.password).append("\n");
         }
         String plainText = sb.toString();
-        System.out.println(plainText);
 
         // Creates a random 12 byte number
         byte[] nonce = new byte[12];

@@ -19,8 +19,12 @@ public class SaveLogic {
         byte[] nonce = new byte[12];
         new SecureRandom().nextBytes(nonce);
 
+        // Generate the salt
+        byte[] salt = new byte[16];
+        new SecureRandom().nextBytes(salt);
+
         // Create the key and the spec
-        SecretKeySpec key = DeriveKey.deriveKey(masterPassword);
+        SecretKeySpec key = DeriveKey.deriveKey(masterPassword, salt);
         GCMParameterSpec spec = new GCMParameterSpec(128, nonce);
 
         // Creates the "encrypt/decrypt machine"
@@ -31,9 +35,10 @@ public class SaveLogic {
         byte[] encrypted = cipher.doFinal(plainText.getBytes());
 
         // Save logic combines the nonce required to decrypt and the encrypted hash
-        byte[] combined = new byte[nonce.length + encrypted.length];
-        System.arraycopy(nonce, 0, combined, 0, nonce.length);
-        System.arraycopy(encrypted, 0, combined, nonce.length, encrypted.length);
+        byte[] combined = new byte[nonce.length + encrypted.length + salt.length];
+        System.arraycopy(salt, 0, combined, 0, salt.length);
+        System.arraycopy(nonce, 0, combined, salt.length, nonce.length);
+        System.arraycopy(encrypted, 0, combined, salt.length + nonce.length, encrypted.length);
 
         // Write the combination to the vault
         Path file = Path.of("vault.dat");

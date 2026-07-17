@@ -11,7 +11,6 @@ public class LoadLogic {
     protected static List<PasswordEntry> load(String masterPassword) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         Path file = Path.of("vault.dat");
-        SecretKeySpec key = DeriveKey.deriveKey(masterPassword);
 
         // Check whether vault.dat is empty
         if (!Files.exists(file) || Files.size(file) == 0) {
@@ -22,9 +21,13 @@ public class LoadLogic {
         byte[] fromFile = Files.readAllBytes(file);
 
         // Load and split the data
-        byte[] loadedNonce = Arrays.copyOfRange(fromFile, 0, 12);
-        byte[] cipherText = Arrays.copyOfRange(fromFile, 12, fromFile.length);
+        byte[] loadedSalt = Arrays.copyOfRange(fromFile, 0, 16);
+        byte[] loadedNonce = Arrays.copyOfRange(fromFile, 16, 28);
+        byte[] cipherText = Arrays.copyOfRange(fromFile, 28, fromFile.length);
         GCMParameterSpec loadedSpec = new GCMParameterSpec(128, loadedNonce);
+
+        // Setup the key
+        SecretKeySpec key = DeriveKey.deriveKey(masterPassword, loadedSalt);
 
         // Sets the "machine" to "decrypt", spits out the result
         cipher.init(Cipher.DECRYPT_MODE, key, loadedSpec);

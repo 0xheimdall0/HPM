@@ -9,7 +9,7 @@ public class HPMUI {
         // Initiate the frame
         JFrame frame = new JFrame("HPM - Heimdall's password manager");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1920, 1080);
+        frame.setSize(1200, 600);
         frame.setLayout(new java.awt.FlowLayout());
 
         // Buttons
@@ -20,11 +20,16 @@ public class HPMUI {
         JTextField outputPWD = new JTextField(37);
         JPasswordField passwordField = new JPasswordField(36);
 
+        // Output fields
+        JTextArea entriesDisplay = new JTextArea(10, 30);
+        entriesDisplay.setEditable(false);
+
         // Add the items to the frame
         frame.add(generatePWD);
         frame.add(outputPWD);
         frame.add(passwordField);
         frame.add(unlockBtn);
+        frame.add(new JScrollPane(entriesDisplay));
 
         // Run the password generating code when the button is clicked
         generatePWD.addActionListener(e -> {
@@ -40,6 +45,7 @@ public class HPMUI {
             try {
                 entries.clear();
                 entries.addAll(LoadLogic.load(masterPassword));
+                refreshList(entriesDisplay, entries);
                 JOptionPane.showMessageDialog(frame, "Unlocked successfully! " + entries.size() + " entries loaded.");
             } catch (Exception err) {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
@@ -47,5 +53,13 @@ public class HPMUI {
         });
 
         frame.setVisible(true);
+    }
+
+    protected static void refreshList(JTextArea area, List<PasswordEntry> entries) {
+        StringBuilder sb = new StringBuilder();
+        for (PasswordEntry elt : entries) {
+            sb.append(elt.label).append(" - ").append(elt.username).append("\n");
+        }
+        area.setText(sb.toString());
     }
 }

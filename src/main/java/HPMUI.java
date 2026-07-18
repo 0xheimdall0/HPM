@@ -14,6 +14,7 @@ public class HPMUI {
         JButton generatePWD = new JButton("Generate Password");
         JButton unlockBtn = new JButton("Unlock");
         JButton addEntry = new JButton("Add an entry");
+        JButton deleteEntry = new JButton("Delete");
 
         // Fields
         JTextField outputPWD = new JTextField(37);
@@ -30,6 +31,8 @@ public class HPMUI {
         frame.add(unlockBtn);
         frame.add(addEntry);
         addEntry.setEnabled(false);
+        frame.add(deleteEntry);
+        deleteEntry.setEnabled(false);
         frame.add(new JScrollPane(entriesDisplay));
 
         // Run the password generating code when the button is clicked
@@ -49,6 +52,7 @@ public class HPMUI {
                 refreshList(entriesDisplay, entries);
                 JOptionPane.showMessageDialog(frame, "Unlocked successfully! " + entries.size() + " entries loaded.");
                 addEntry.setEnabled(true);
+                deleteEntry.setEnabled(true);
             } catch (Exception err) {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
             }
@@ -59,7 +63,8 @@ public class HPMUI {
             String label = JOptionPane.showInputDialog("Label (site/app): ");
             String username = JOptionPane.showInputDialog("Usename: ");
             if (label == null || username == null) return;
-            int choice = JOptionPane.showConfirmDialog(frame, "Generate password randomly?", "Password", JOptionPane.YES_NO_OPTION);
+            int choice = JOptionPane.showConfirmDialog(frame, "Generate password randomly?",
+                    "Password", JOptionPane.YES_NO_OPTION);
             String password;
             if (choice == JOptionPane.YES_OPTION) {
                 password = PasswordGenerator.generatePassword(16);
@@ -69,6 +74,32 @@ public class HPMUI {
             entries.add(new PasswordEntry(label, username, password));
             autoSave(entries, passwordField, frame);
             refreshList(entriesDisplay, entries);
+        });
+
+        // Delete entries button manager
+        deleteEntry.addActionListener(e -> {
+            if (entries.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "No entry to delete!");
+                return;
+            }
+
+            // Make the list of choices to delete the right entry
+            String[] labels = new String[entries.size()];
+            for (int i = 0; i < entries.size(); i++) {
+                labels[i] = entries.get(i).label + " - " + entries.get(i).username;
+            }
+
+            String selected = (String) JOptionPane.showInputDialog(frame, "Which entry do you wish to delete?",
+                    "Delete", JOptionPane.QUESTION_MESSAGE,
+                    null, labels, labels[0]);
+            if (selected == null) return;
+            int confirm = JOptionPane.showConfirmDialog(frame, "Are you sure you want to delete\"" + selected + "\"?",
+                    "Confirm", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.NO_OPTION) return;
+            int index = java.util.Arrays.asList(labels).indexOf(selected);
+            entries.remove(index);
+            refreshList(entriesDisplay, entries);
+            autoSave(entries, passwordField, frame);
         });
 
         // Sets the window visible only once everything is ready to be shown

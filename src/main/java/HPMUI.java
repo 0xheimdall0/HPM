@@ -5,6 +5,8 @@ import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.tools.JavaCompiler;
 import javax.tools.Tool;
 
@@ -34,6 +36,7 @@ public class HPMUI {
 
         // Fields
         JPasswordField passwordField = new JPasswordField(24);
+        JTextField searchField = new JTextField(24);
 
         // Output fields
         DefaultListModel<PasswordEntry> listModel = new DefaultListModel<>();
@@ -56,7 +59,10 @@ public class HPMUI {
         // Panels layout
         JPanel vaultPanel = new JPanel(new java.awt.BorderLayout());
         vaultPanel.add(topPanel, BorderLayout.NORTH);
-        vaultPanel.add(new JScrollPane(entriesDisplay), BorderLayout.CENTER);
+        JPanel listArea = new JPanel(new java.awt.BorderLayout());
+        listArea.add(searchField, java.awt.BorderLayout.NORTH);
+        listArea.add(new JScrollPane(entriesDisplay), java.awt.BorderLayout.CENTER);
+        vaultPanel.add(listArea, java.awt.BorderLayout.CENTER);
         vaultPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         // Generator panel
@@ -165,7 +171,7 @@ public class HPMUI {
                 entries.clear();
                 entries.addAll(LoadLogic.load(masterPassword));
                 sessionPassword[0] = masterPassword;
-                refreshList(listModel, entries);
+                refreshList(listModel, entries, searchField.getText());
                 JOptionPane.showMessageDialog(frame, "Unlocked successfully! " + entries.size() + " entries loaded.");
                 addEntry.setEnabled(true);
                 deleteEntry.setEnabled(true);
@@ -179,6 +185,16 @@ public class HPMUI {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
                 passwordField.setText("");
             }
+        });
+
+        // Reactive search field
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {refreshList(listModel, entries, searchField.getText());}
+            @Override
+            public void removeUpdate(DocumentEvent e) {refreshList(listModel, entries, searchField.getText());}
+            @Override
+            public void changedUpdate(DocumentEvent e) {refreshList(listModel, entries, searchField.getText());}
         });
 
         // Add entries button manager
@@ -210,7 +226,7 @@ public class HPMUI {
             }
             entries.add(new PasswordEntry(label, username, password));
             autoSave(entries, sessionPassword[0], frame);
-            refreshList(listModel, entries);
+            refreshList(listModel, entries, searchField.getText());
         });
 
         // Delete entries button manager
@@ -225,7 +241,7 @@ public class HPMUI {
                     JOptionPane.YES_NO_OPTION);
             if (confirm != JOptionPane.YES_OPTION) return;
             entries.remove(selected);
-            refreshList(listModel, entries);
+            refreshList(listModel, entries, searchField.getText());
             autoSave(entries, sessionPassword[0], frame);
         });
 
@@ -276,7 +292,7 @@ public class HPMUI {
             selected.username = newUsername;
             selected.password = newPassword;
 
-            refreshList(listModel, entries);
+            refreshList(listModel, entries, searchField.getText());
             autoSave(entries, sessionPassword[0], frame);
         });
 
@@ -323,10 +339,13 @@ public class HPMUI {
     }
 
     // Method to show all the entries labels and usernames
-    protected static void refreshList(DefaultListModel<PasswordEntry> model, List<PasswordEntry> entries) {
+    protected static void refreshList(DefaultListModel<PasswordEntry> model, List<PasswordEntry> entries, String query) {
         model.clear();
+        String q = query.toLowerCase();
         for (PasswordEntry elt : entries) {
-            model.addElement(elt);
+            if (elt.label.toLowerCase().contains(q) || elt.username.toLowerCase().contains(q)){
+               model.addElement(elt);
+            }
         }
     }
 

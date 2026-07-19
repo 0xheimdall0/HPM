@@ -9,11 +9,16 @@ import javax.tools.Tool;
 
 public class HPMUI {
     public static void main(String[] args) {
+        com.formdev.flatlaf.FlatDarculaLaf.setup();
+
         // Initiate the frame
         JFrame frame = new JFrame("HPM - Heimdall's password manager");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1200, 600);
         frame.setLayout(new java.awt.BorderLayout());
+        frame.setLocationRelativeTo(null);
+        ((JComponent) frame.getContentPane()).setBorder(
+                javax.swing.BorderFactory.createEmptyBorder(10, 20, 10, 20));
 
         // Buttons
         JButton generatePWD = new JButton("Generate Password");
@@ -26,8 +31,8 @@ public class HPMUI {
         JButton editBtn = new JButton("Edit");
 
         // Fields
-        JTextField outputPWD = new JTextField(37);
-        JPasswordField passwordField = new JPasswordField(36);
+        JTextField outputPWD = new JTextField(24);
+        JPasswordField passwordField = new JPasswordField(24);
 
         // Output fields
         DefaultListModel<PasswordEntry> listModel = new DefaultListModel<>();

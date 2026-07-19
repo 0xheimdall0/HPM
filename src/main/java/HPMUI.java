@@ -19,6 +19,8 @@ public class HPMUI {
         JButton deleteEntry = new JButton("Delete");
         JButton seePWD = new JButton("Show password");
         JButton copyPWD = new JButton("Copy password");
+        JButton lockBtn = new JButton("Lock");
+        JButton editBtn = new JButton("Edit");
 
         // Fields
         JTextField outputPWD = new JTextField(37);
@@ -37,11 +39,15 @@ public class HPMUI {
         frame.add(deleteEntry);
         frame.add(seePWD);
         frame.add(copyPWD);
+        frame.add(lockBtn);
+        frame.add(editBtn);
+        frame.add(new JScrollPane(entriesDisplay));
         addEntry.setEnabled(false);
         deleteEntry.setEnabled(false);
         seePWD.setEnabled(false);
         copyPWD.setEnabled(false);
-        frame.add(new JScrollPane(entriesDisplay));
+        lockBtn.setEnabled(false);
+        editBtn.setEnabled(false);
 
         // Run the password generating code when the button is clicked
         generatePWD.addActionListener(e -> {
@@ -63,6 +69,9 @@ public class HPMUI {
                 deleteEntry.setEnabled(true);
                 seePWD.setEnabled(true);
                 copyPWD.setEnabled(true);
+                lockBtn.setEnabled(true);
+                editBtn.setEnabled(true);
+                unlockBtn.setEnabled(false);
             } catch (Exception err) {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
             }
@@ -112,6 +121,28 @@ public class HPMUI {
             autoSave(entries, passwordField, frame);
         });
 
+        // Edit button manager
+        editBtn.addActionListener(e -> {
+            PasswordEntry selected = entriesDisplay.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(frame,"No entry is selected.");
+                return;
+            }
+            String newLabel = JOptionPane.showInputDialog("Label: ", selected.label);
+            if (newLabel == null) return;
+            String newUsername = JOptionPane.showInputDialog("Username: ", selected.username);
+            if (newUsername == null) return;
+            String newPassword = JOptionPane.showInputDialog("Password: ", selected.password);
+            if (newPassword == null) return;
+
+            selected.label = newLabel;
+            selected.username = newUsername;
+            selected.password = newPassword;
+
+            refreshList(listModel, entries);
+            autoSave(entries, passwordField, frame);
+        });
+
         // See password button manager
         seePWD.addActionListener(e -> {
             PasswordEntry selected = entriesDisplay.getSelectedValue();
@@ -132,6 +163,23 @@ public class HPMUI {
             StringSelection data = new StringSelection(selected.password);
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(data, null);
             JOptionPane.showMessageDialog(frame, "Password copied to clipboard!");
+        });
+
+        // Lock button manager
+        lockBtn.addActionListener(e -> {
+            // Clear everything
+            entries.clear();
+            listModel.clear();
+            passwordField.setText("");
+
+            // Lock all unneeded buttons
+            addEntry.setEnabled(false);
+            deleteEntry.setEnabled(false);
+            seePWD.setEnabled(false);
+            copyPWD.setEnabled(false);
+            lockBtn.setEnabled(false);
+            editBtn.setEnabled(false);
+            unlockBtn.setEnabled(true);
         });
 
         // Sets the window visible only once everything is ready to be shown

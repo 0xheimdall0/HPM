@@ -23,7 +23,7 @@ public class HPMUI {
         // Buttons
         JButton generatePWD = new JButton("Generate Password");
         JButton unlockBtn = new JButton("Unlock");
-        JButton addEntry = new JButton("Add an entry");
+        JButton addEntry = new JButton("Add");
         JButton deleteEntry = new JButton("Delete");
         JButton seePWD = new JButton("Show password");
         JButton copyPWD = new JButton("Copy password");
@@ -42,6 +42,7 @@ public class HPMUI {
         JPanel topPanel = new JPanel();
         topPanel.add(passwordField);
         topPanel.add(unlockBtn);
+        topPanel.add(lockBtn);
         frame.add(topPanel, java.awt.BorderLayout.NORTH);
 
         // Center items
@@ -50,22 +51,21 @@ public class HPMUI {
         // Button panel
         JPanel buttonPanel = new JPanel();
         buttonPanel.add(addEntry);
+        buttonPanel.add(editBtn);
         buttonPanel.add(deleteEntry);
         buttonPanel.add(seePWD);
         buttonPanel.add(copyPWD);
-        buttonPanel.add(lockBtn);
-        buttonPanel.add(editBtn);
         buttonPanel.add(generatePWD);
         buttonPanel.add(outputPWD);
         frame.add(buttonPanel, java.awt.BorderLayout.SOUTH);
 
         // Set the protected items to disabled
         addEntry.setEnabled(false);
+        editBtn.setEnabled(false);
         deleteEntry.setEnabled(false);
         seePWD.setEnabled(false);
         copyPWD.setEnabled(false);
         lockBtn.setEnabled(false);
-        editBtn.setEnabled(false);
 
         // Run the password generating code when the button is clicked
         generatePWD.addActionListener(e -> {
@@ -150,15 +150,44 @@ public class HPMUI {
         editBtn.addActionListener(e -> {
             PasswordEntry selected = entriesDisplay.getSelectedValue();
             if (selected == null) {
-                JOptionPane.showMessageDialog(frame,"No entry is selected.");
+                JOptionPane.showMessageDialog(frame, "No entry is selected.");
                 return;
             }
-            String newLabel = JOptionPane.showInputDialog("Label: ", selected.label);
-            if (newLabel == null) return;
-            String newUsername = JOptionPane.showInputDialog("Username: ", selected.username);
-            if (newUsername == null) return;
-            String newPassword = JOptionPane.showInputDialog("Password: ", selected.password);
-            if (newPassword == null) return;
+            JTextField labelField = new JTextField(selected.label, 20);
+            JTextField usernameField = new JTextField(selected.username, 20);
+            JPasswordField passwordFieldEdit = new JPasswordField(selected.password, 20);
+            JCheckBox showPWD = new JCheckBox("Show password");
+
+            // Show / hide password
+            char maskChar = passwordFieldEdit.getEchoChar();
+            showPWD.addActionListener(ev -> {
+                if (showPWD.isSelected()) passwordFieldEdit.setEchoChar((char) 0);
+                else passwordFieldEdit.setEchoChar(maskChar);
+            });
+
+            // Stack every items vertically in the edit panel
+            JPanel editPanel = new JPanel(new java.awt.GridLayout(0, 1, 5, 5));
+            editPanel.add(new JLabel("Label:"));
+            editPanel.add(labelField);
+            editPanel.add(new JLabel("Username/email:"));
+            editPanel.add(usernameField);
+            editPanel.add(new JLabel("Password:"));
+            editPanel.add(passwordFieldEdit);
+            editPanel.add(showPWD);
+
+            // Show panel in one dialog with OK / cancel options
+            int result = JOptionPane.showConfirmDialog(frame, editPanel, "Edit entry", JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE);
+            if (result == JOptionPane.CANCEL_OPTION) return;
+
+            String newLabel = labelField.getText();
+            String newUsername = usernameField.getText();
+            String newPassword = new String(passwordField.getPassword());
+
+            if (newLabel.isBlank() || newUsername.isBlank() || newPassword.isBlank()) {
+                JOptionPane.showMessageDialog(frame, "All fields are required.");
+                return;
+            }
 
             selected.label = newLabel;
             selected.username = newUsername;

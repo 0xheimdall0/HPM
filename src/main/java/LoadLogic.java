@@ -36,17 +36,9 @@ public class LoadLogic {
         String decryptedText = new String(decrypted);
 
         // Split the decrypted text into separate strings
-        String[] elements = decryptedText.split("\n");
+        java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<PasswordEntry>>(){}.getType();
+        List<PasswordEntry> loadedEntries = new com.google.gson.Gson().fromJson(decryptedText, listType);
 
-        // Load the entries in the adequate format
-        List<PasswordEntry> loadedEntries = new ArrayList<>();
-        for (String elt : elements) {
-            String[] values = elt.split(",");
-            String label = values[0];
-            String username = values[1];
-            String password = values[2];
-            loadedEntries.add(new PasswordEntry(label, username, password));
-        }
         return loadedEntries;
     }
 }

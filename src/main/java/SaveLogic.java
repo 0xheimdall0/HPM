@@ -8,12 +8,8 @@ import java.util.List;
 
 public class SaveLogic {
     protected static void save(List<PasswordEntry> entries, String masterPassword) throws Exception {
-        // Turns the entries into a single string that can be easily encrypted
-        StringBuilder sb = new StringBuilder();
-        for (PasswordEntry elt : entries) {
-            sb.append(elt.label).append(",").append(elt.username).append(",").append(elt.password).append("\n");
-        }
-        String plainText = sb.toString();
+        // Turns the entries into a single Json string that can be easily encrypted
+        String plainText = new com.google.gson.Gson().toJson(entries);
 
         // Creates a random 12 byte number
         byte[] nonce = new byte[12];

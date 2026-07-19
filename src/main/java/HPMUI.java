@@ -73,6 +73,9 @@ public class HPMUI {
             outputPWD.setText(PWD);
         });
 
+        // Send password with enter key
+        passwordField.addActionListener(e -> unlockBtn.doClick());
+
         // Password unlock code
         List<PasswordEntry> entries = new ArrayList<>();
 
@@ -98,8 +101,17 @@ public class HPMUI {
         // Add entries button manager
         addEntry.addActionListener(e -> {
             String label = JOptionPane.showInputDialog("Label (site/app): ");
-            String username = JOptionPane.showInputDialog("Usename: ");
-            if (label == null || username == null) return;
+            if (label == null) return;
+            else if (label.isBlank()) {
+                JOptionPane.showMessageDialog(frame, "Every field is required.");
+                return;
+            };
+            String username = JOptionPane.showInputDialog("Username: ");
+            if (username == null) return;
+            else if (username.isBlank()) {
+                JOptionPane.showMessageDialog(frame, "Every field is required.");
+                return;
+            };
             int choice = JOptionPane.showConfirmDialog(frame, "Generate password randomly?",
                     "Password", JOptionPane.YES_NO_OPTION);
             String password;
@@ -107,6 +119,11 @@ public class HPMUI {
                 password = PasswordGenerator.generatePassword(16);
             } else {
                 password = JOptionPane.showInputDialog("Password: ");
+                if (password == null) return;
+                else if (password.isBlank()) {
+                    JOptionPane.showMessageDialog(frame, "Every field is required.");
+                    return;
+                }
             }
             entries.add(new PasswordEntry(label, username, password));
             autoSave(entries, passwordField, frame);
@@ -115,26 +132,16 @@ public class HPMUI {
 
         // Delete entries button manager
         deleteEntry.addActionListener(e -> {
-            if (entries.isEmpty()) {
-                JOptionPane.showMessageDialog(frame, "No entry to delete!");
+            PasswordEntry selected = entriesDisplay.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(frame,"No entry is selected");
                 return;
             }
-
-            // Make the list of choices to delete the right entry
-            String[] labels = new String[entries.size()];
-            for (int i = 0; i < entries.size(); i++) {
-                labels[i] = entries.get(i).label + " - " + entries.get(i).username;
-            }
-
-            String selected = (String) JOptionPane.showInputDialog(frame, "Which entry do you wish to delete?",
-                    "Delete", JOptionPane.QUESTION_MESSAGE,
-                    null, labels, labels[0]);
-            if (selected == null) return;
-            int confirm = JOptionPane.showConfirmDialog(frame, "Are you sure you want to delete\"" + selected + "\"?",
-                    "Confirm", JOptionPane.YES_NO_OPTION);
+            int confirm = JOptionPane.showConfirmDialog(frame,
+                    "Do you really want to delete \"" + selected + "\"?", "Confirm",
+                    JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.NO_OPTION) return;
-            int index = java.util.Arrays.asList(labels).indexOf(selected);
-            entries.remove(index);
+            entries.remove(selected);
             refreshList(listModel, entries);
             autoSave(entries, passwordField, frame);
         });
@@ -218,6 +225,7 @@ public class HPMUI {
 
         // Sets the window visible only once everything is ready to be shown
         frame.setVisible(true);
+        passwordField.requestFocusInWindow();
     }
 
     // Method to show all the entries labels and usernames

@@ -1,8 +1,11 @@
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import javax.tools.Tool;
 
 public class HPMUI {
     public static void main(String[] args) {
@@ -10,7 +13,7 @@ public class HPMUI {
         JFrame frame = new JFrame("HPM - Heimdall's password manager");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1200, 600);
-        frame.setLayout(new java.awt.FlowLayout());
+        frame.setLayout(new java.awt.BorderLayout());
 
         // Buttons
         JButton generatePWD = new JButton("Generate Password");
@@ -30,18 +33,28 @@ public class HPMUI {
         DefaultListModel<PasswordEntry> listModel = new DefaultListModel<>();
         JList<PasswordEntry> entriesDisplay = new JList<>(listModel);
 
-        // Add the items to the frame
-        frame.add(generatePWD);
-        frame.add(outputPWD);
-        frame.add(passwordField);
-        frame.add(unlockBtn);
-        frame.add(addEntry);
-        frame.add(deleteEntry);
-        frame.add(seePWD);
-        frame.add(copyPWD);
-        frame.add(lockBtn);
-        frame.add(editBtn);
-        frame.add(new JScrollPane(entriesDisplay));
+        // Top panel
+        JPanel topPanel = new JPanel();
+        topPanel.add(passwordField);
+        topPanel.add(unlockBtn);
+        frame.add(topPanel, java.awt.BorderLayout.NORTH);
+
+        // Center items
+        frame.add(new JScrollPane(entriesDisplay), BorderLayout.CENTER);
+
+        // Button panel
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(addEntry);
+        buttonPanel.add(deleteEntry);
+        buttonPanel.add(seePWD);
+        buttonPanel.add(copyPWD);
+        buttonPanel.add(lockBtn);
+        buttonPanel.add(editBtn);
+        buttonPanel.add(generatePWD);
+        buttonPanel.add(outputPWD);
+        frame.add(buttonPanel, java.awt.BorderLayout.SOUTH);
+
+        // Set the protected items to disabled
         addEntry.setEnabled(false);
         deleteEntry.setEnabled(false);
         seePWD.setEnabled(false);
@@ -160,9 +173,25 @@ public class HPMUI {
                 JOptionPane.showMessageDialog(frame, "No entry is selected.");
                 return;
             }
-            StringSelection data = new StringSelection(selected.password);
-            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(data, null);
-            JOptionPane.showMessageDialog(frame, "Password copied to clipboard!");
+
+            String copied = selected.password;
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(new StringSelection(copied), null);
+
+            // Set timer for auto deletion of the clipboard
+            javax.swing.Timer timer = new javax.swing.Timer(20000, ev -> {
+                try {
+                    String current = (String) clipboard.getData(DataFlavor.stringFlavor);
+                    if (current.equals(copied)) {
+                        clipboard.setContents(new StringSelection(""), null);
+                    }
+                } catch (Exception err) {
+                    // Leave clipboard alone
+                }
+            });
+            timer.setRepeats(false);
+            timer.start();
+            JOptionPane.showMessageDialog(frame, "Password copied to clipboard! Clipboard will be automatically cleared in 20 seconds.");
         });
 
         // Lock button manager

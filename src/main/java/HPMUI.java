@@ -1,3 +1,5 @@
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
@@ -15,14 +17,16 @@ public class HPMUI {
         JButton unlockBtn = new JButton("Unlock");
         JButton addEntry = new JButton("Add an entry");
         JButton deleteEntry = new JButton("Delete");
+        JButton seePWD = new JButton("Show password");
+        JButton copyPWD = new JButton("Copy password");
 
         // Fields
         JTextField outputPWD = new JTextField(37);
         JPasswordField passwordField = new JPasswordField(36);
 
         // Output fields
-        JTextArea entriesDisplay = new JTextArea(10, 30);
-        entriesDisplay.setEditable(false);
+        DefaultListModel<PasswordEntry> listModel = new DefaultListModel<>();
+        JList<PasswordEntry> entriesDisplay = new JList<>(listModel);
 
         // Add the items to the frame
         frame.add(generatePWD);
@@ -30,9 +34,13 @@ public class HPMUI {
         frame.add(passwordField);
         frame.add(unlockBtn);
         frame.add(addEntry);
-        addEntry.setEnabled(false);
         frame.add(deleteEntry);
+        frame.add(seePWD);
+        frame.add(copyPWD);
+        addEntry.setEnabled(false);
         deleteEntry.setEnabled(false);
+        seePWD.setEnabled(false);
+        copyPWD.setEnabled(false);
         frame.add(new JScrollPane(entriesDisplay));
 
         // Run the password generating code when the button is clicked
@@ -49,10 +57,12 @@ public class HPMUI {
             try {
                 entries.clear();
                 entries.addAll(LoadLogic.load(masterPassword));
-                refreshList(entriesDisplay, entries);
+                refreshList(listModel, entries);
                 JOptionPane.showMessageDialog(frame, "Unlocked successfully! " + entries.size() + " entries loaded.");
                 addEntry.setEnabled(true);
                 deleteEntry.setEnabled(true);
+                seePWD.setEnabled(true);
+                copyPWD.setEnabled(true);
             } catch (Exception err) {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
             }
@@ -73,7 +83,7 @@ public class HPMUI {
             }
             entries.add(new PasswordEntry(label, username, password));
             autoSave(entries, passwordField, frame);
-            refreshList(entriesDisplay, entries);
+            refreshList(listModel, entries);
         });
 
         // Delete entries button manager
@@ -98,8 +108,30 @@ public class HPMUI {
             if (confirm == JOptionPane.NO_OPTION) return;
             int index = java.util.Arrays.asList(labels).indexOf(selected);
             entries.remove(index);
-            refreshList(entriesDisplay, entries);
+            refreshList(listModel, entries);
             autoSave(entries, passwordField, frame);
+        });
+
+        // See password button manager
+        seePWD.addActionListener(e -> {
+            PasswordEntry selected = entriesDisplay.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(frame,"No entry is selected.");
+                return;
+            }
+            JOptionPane.showMessageDialog(frame, "The password is: " + selected.password);
+        });
+
+        // Copy password button manager
+        copyPWD.addActionListener(e -> {
+            PasswordEntry selected = entriesDisplay.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(frame, "No entry is selected.");
+                return;
+            }
+            StringSelection data = new StringSelection(selected.password);
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(data, null);
+            JOptionPane.showMessageDialog(frame, "Password copied to clipboard!");
         });
 
         // Sets the window visible only once everything is ready to be shown
@@ -107,12 +139,11 @@ public class HPMUI {
     }
 
     // Method to show all the entries labels and usernames
-    protected static void refreshList(JTextArea area, List<PasswordEntry> entries) {
-        StringBuilder sb = new StringBuilder();
+    protected static void refreshList(DefaultListModel<PasswordEntry> model, List<PasswordEntry> entries) {
+        model.clear();
         for (PasswordEntry elt : entries) {
-            sb.append(elt.label).append(" - ").append(elt.username).append("\n");
+            model.addElement(elt);
         }
-        area.setText(sb.toString());
     }
 
     // Auto save method

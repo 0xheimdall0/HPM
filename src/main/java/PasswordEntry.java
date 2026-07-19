@@ -10,4 +10,9 @@ public class PasswordEntry {
         this.username = username;
         this.password = password;
     }
+
+    @Override
+    public String toString() {
+        return label + " - " + username;
+    }
 }

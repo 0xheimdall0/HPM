@@ -41,6 +41,9 @@ public class HPMUI {
         // Output fields
         DefaultListModel<PasswordEntry> listModel = new DefaultListModel<>();
         JList<PasswordEntry> entriesDisplay = new JList<>(listModel);
+        JComboBox<String> sortedBox = new JComboBox<>(new String [] {
+                "Label (A-Z)", "Label (Z-A)", "Username (A-Z)", "Username (Z-A)"
+        });
 
         // Top panel
         JPanel topPanel = new JPanel();
@@ -60,7 +63,10 @@ public class HPMUI {
         JPanel vaultPanel = new JPanel(new java.awt.BorderLayout());
         vaultPanel.add(topPanel, BorderLayout.NORTH);
         JPanel listArea = new JPanel(new java.awt.BorderLayout());
-        listArea.add(searchField, java.awt.BorderLayout.NORTH);
+        JPanel searchSort = new JPanel(new java.awt.BorderLayout());
+        searchSort.add(searchField, java.awt.BorderLayout.CENTER);
+        searchSort.add(sortedBox, java.awt.BorderLayout.EAST);
+        listArea.add(searchSort, java.awt.BorderLayout.NORTH);
         listArea.add(new JScrollPane(entriesDisplay), java.awt.BorderLayout.CENTER);
         vaultPanel.add(listArea, java.awt.BorderLayout.CENTER);
         vaultPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -294,6 +300,22 @@ public class HPMUI {
 
             refreshList(listModel, entries, searchField.getText());
             autoSave(entries, sessionPassword[0], frame);
+        });
+
+        // Sorting box manager
+        sortedBox.addActionListener(e -> {
+            String choice = (String) sortedBox.getSelectedItem();
+            switch (choice) {
+                case "Label (A-Z)" ->
+                        entries.sort(java.util.Comparator.comparing(x -> x.label.toLowerCase()));
+                case "Label (Z-A)" ->
+                        entries.sort(java.util.Comparator.comparing((PasswordEntry x) -> x.label.toLowerCase()).reversed());
+                case "Username (A-Z)" ->
+                        entries.sort(java.util.Comparator.comparing(x -> x.username.toLowerCase()));
+                case "Username (Z-A)" ->
+                        entries.sort(java.util.Comparator.comparing((PasswordEntry x) -> x.username.toLowerCase()).reversed());
+            }
+            refreshList(listModel, entries, searchField.getText());
         });
 
         // See password button manager

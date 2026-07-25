@@ -19,7 +19,7 @@ public class HPMUI {
         // Initiate the frame
         JFrame frame = new JFrame("HPM - Heimdall's password manager");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(650, 600);
+        frame.setSize(800, 600);
         frame.setLayout(new java.awt.BorderLayout());
         frame.setLocationRelativeTo(null);
         ((JComponent) frame.getContentPane()).setBorder(
@@ -33,6 +33,16 @@ public class HPMUI {
         JButton copyPWD = new JButton("Copy password");
         JButton lockBtn = new JButton("Lock");
         JButton editBtn = new JButton("Edit");
+        JButton TOTPbtn = new JButton("2FA");
+
+        // Set the protected items to disabled
+        addEntry.setEnabled(false);
+        editBtn.setEnabled(false);
+        deleteEntry.setEnabled(false);
+        seePWD.setEnabled(false);
+        copyPWD.setEnabled(false);
+        lockBtn.setEnabled(false);
+        TOTPbtn.setEnabled(false);
 
         // Fields
         JPasswordField passwordField = new JPasswordField(24);
@@ -58,6 +68,7 @@ public class HPMUI {
         buttonPanel.add(deleteEntry);
         buttonPanel.add(seePWD);
         buttonPanel.add(copyPWD);
+        buttonPanel.add(TOTPbtn);
 
         // Panels layout
         JPanel vaultPanel = new JPanel(new java.awt.BorderLayout());
@@ -157,14 +168,6 @@ public class HPMUI {
         frame.add(navPanel, BorderLayout.WEST);
         frame.add(contentArea, BorderLayout.CENTER);
 
-        // Set the protected items to disabled
-        addEntry.setEnabled(false);
-        editBtn.setEnabled(false);
-        deleteEntry.setEnabled(false);
-        seePWD.setEnabled(false);
-        copyPWD.setEnabled(false);
-        lockBtn.setEnabled(false);
-
         // Send password with enter key
         passwordField.addActionListener(e -> unlockBtn.doClick());
 
@@ -185,6 +188,7 @@ public class HPMUI {
                 copyPWD.setEnabled(true);
                 lockBtn.setEnabled(true);
                 editBtn.setEnabled(true);
+                TOTPbtn.setEnabled(true);
                 unlockBtn.setEnabled(false);
                 passwordField.setText("");
             } catch (Exception err) {
@@ -352,7 +356,37 @@ public class HPMUI {
             copyPWD.setEnabled(false);
             lockBtn.setEnabled(false);
             editBtn.setEnabled(false);
+            TOTPbtn.setEnabled(false);
             unlockBtn.setEnabled(true);
+        });
+
+        // 2FA button manager
+        TOTPbtn.addActionListener(e -> {
+            PasswordEntry selected = entriesDisplay.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(frame, "No entry is selected.");
+                return;
+            }
+
+            // If there is no secret yet, set one up
+            if (selected.TOTPsecret == null || selected.TOTPsecret.isBlank()) {
+                String secret = JOptionPane.showInputDialog(frame, "Enter the 2FA secret (Base 32):");
+                if (secret == null || secret.isBlank()) return;
+                selected.TOTPsecret = secret.trim();
+                autoSave(entries, sessionPassword[0], frame);
+                JOptionPane.showMessageDialog(frame, "2FA secret saved.");
+                return;
+            }
+
+            // If a secret has been set, show the 2FA code
+            try {
+                String code = TOTP.generateCode(selected.TOTPsecret);
+                long secondsLeft = 30 - (System.currentTimeMillis() / 1000L % 30);
+                JOptionPane.showMessageDialog(frame,
+                        "Code: " + code + "\nExpires in " + secondsLeft + "s");
+            } catch (Exception err) {
+                JOptionPane.showMessageDialog(frame, "Invalid 2FA secret.");
+            }
         });
 
         // Sets the window visible only once everything is ready to be shown

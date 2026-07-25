@@ -3,6 +3,7 @@ public class PasswordEntry {
     String label;
     String username;
     String password;
+    String TOTPsecret;
 
     // Constructor for the final entry
     public PasswordEntry(String label, String username, String password) {

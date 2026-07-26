@@ -7,8 +7,6 @@ import java.util.List;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.tools.JavaCompiler;
-import javax.tools.Tool;
 
 public class HPMUI {
     // Fields and buttons
@@ -35,6 +33,10 @@ public class HPMUI {
     private final JButton lockBtn      = new JButton("Lock");
     private final JButton changePwdBtn = new JButton("Change master password");
 
+    private boolean autoLockEnabled = false;
+    private int autoLockMinutes = 5;
+    private javax.swing.Timer autoLockTimer;
+
     public static void main(String[] args) {
         com.formdev.flatlaf.FlatDarculaLaf.setup();
         SwingUtilities.invokeLater(HPMUI::new);
@@ -48,6 +50,7 @@ public class HPMUI {
         JPanel settingsPanel = buildSettingsPanel();
         buildNavigation(vaultPanel, generatorPanel, settingsPanel);
         wireHandlers();
+        setupAutoLock();
         setUnlocked(false);
         frame.setVisible(true);
         passwordField.requestFocusInWindow();
@@ -74,6 +77,15 @@ public class HPMUI {
         autoSave();
         setUnlocked(true);
         JOptionPane.showMessageDialog(frame, "Your secure vault has been created, you're all set.");
+    }
+
+    private void setupAutoLock() {
+        autoLockTimer = new Timer(autoLockMinutes * 60 * 1000, e -> onLock());
+        autoLockTimer.setRepeats(false);
+
+        Toolkit.getDefaultToolkit().addAWTEventListener(ev -> {
+            if (autoLockTimer.isRunning()) autoLockTimer.restart();
+        }, AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK | AWTEvent.MOUSE_MOTION_EVENT_MASK);
     }
 
     // Panel builders
@@ -158,9 +170,30 @@ public class HPMUI {
     }
 
     private JPanel buildSettingsPanel() {
+        JCheckBox autoLockBox = new JCheckBox("Enable auto-lock", autoLockEnabled);
+        JSpinner autoLockTime = new JSpinner(new SpinnerNumberModel(autoLockMinutes, 1, 60, 1));
+        autoLockTime.setEnabled(autoLockEnabled);
+
+        autoLockBox.addActionListener(e -> {
+            autoLockEnabled = autoLockBox.isSelected();
+            autoLockTime.setEnabled(autoLockEnabled);
+            if (autoLockEnabled && sessionPassword != null) autoLockTimer.restart();
+            else autoLockTimer.stop();
+        });
+
+        autoLockTime.addChangeListener(e -> {
+            autoLockMinutes = (int) autoLockTime.getValue();
+            autoLockTimer.setInitialDelay(autoLockMinutes * 60 * 1000);
+            autoLockTimer.setDelay(autoLockMinutes * 60 * 1000);
+            if (autoLockTimer.isRunning()) autoLockTimer.restart();
+        });
+
         JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
         content.add(new JLabel("Security"));
         content.add(changePwdBtn);
+        content.add(autoLockBox);
+        content.add(new JLabel("Auto-lock after (minutes):"));
+        content.add(autoLockTime);
 
         JPanel settingsPanel = new JPanel(new BorderLayout());
         settingsPanel.add(content, BorderLayout.NORTH);
@@ -205,6 +238,8 @@ public class HPMUI {
         lockBtn.setEnabled(unlocked);
         changePwdBtn.setEnabled(unlocked);
         unlockBtn.setEnabled(!unlocked);
+        if (unlocked && autoLockEnabled) autoLockTimer.restart();
+        else autoLockTimer.stop();
     }
 
     private void refreshList() {
@@ -339,6 +374,7 @@ public class HPMUI {
         JTextField labelField = new JTextField(selected.label, 20);
         JTextField usernameField = new JTextField(selected.username, 20);
         JPasswordField passwordFieldEdit = new JPasswordField(selected.password, 20);
+        JTextField totpField = new JTextField(selected.TOTPsecret == null ? "" : selected.TOTPsecret, 20);
         JCheckBox showPWD = new JCheckBox("Show password");
 
         // Show / hide password
@@ -357,6 +393,8 @@ public class HPMUI {
         editPanel.add(new JLabel("Password:"));
         editPanel.add(passwordFieldEdit);
         editPanel.add(showPWD);
+        editPanel.add(new JLabel("2FA secret (optional):"));
+        editPanel.add(totpField);
 
         // Show panel in one dialog with OK / cancel options
         int result = JOptionPane.showConfirmDialog(frame, editPanel, "Edit entry", JOptionPane.OK_CANCEL_OPTION,
@@ -366,6 +404,8 @@ public class HPMUI {
         String newLabel = labelField.getText();
         String newUsername = usernameField.getText();
         String newPassword = new String(passwordFieldEdit.getPassword());
+        String newTotp = totpField.getText().trim();
+        selected.TOTPsecret = newTotp.isBlank() ? null : newTotp;
 
         if (newLabel.isBlank() || newUsername.isBlank() || newPassword.isBlank()) {
             JOptionPane.showMessageDialog(frame, "All fields are required.");

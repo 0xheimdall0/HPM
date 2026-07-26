@@ -1,8 +1,17 @@
+import com.formdev.flatlaf.FlatDarculaLaf;
+
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -35,10 +44,10 @@ public class HPMUI {
 
     private boolean autoLockEnabled = false;
     private int autoLockMinutes = 5;
-    private javax.swing.Timer autoLockTimer;
+    private Timer autoLockTimer;
 
     public static void main(String[] args) {
-        com.formdev.flatlaf.FlatDarculaLaf.setup();
+        FlatDarculaLaf.setup();
         SwingUtilities.invokeLater(HPMUI::new);
     }
 
@@ -293,9 +302,9 @@ public class HPMUI {
             public void removeUpdate(DocumentEvent e) { refreshList(); }
             public void changedUpdate(DocumentEvent e) { refreshList(); }
         });
-        entriesDisplay.addMouseListener(new java.awt.event.MouseAdapter() {
+        entriesDisplay.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
+            public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     PasswordEntry selected = entriesDisplay.getSelectedValue();
                     if (selected != null) autoClearCopy(selected.password);
@@ -315,7 +324,7 @@ public class HPMUI {
         });
         timer.setRepeats(false);
         timer.start();
-        JOptionPane.showMessageDialog(frame, "Password copied. Clipboard clears in 20s if untouched.");
+        JOptionPane.showMessageDialog(frame, "Copied. Clipboard clears in 20s if untouched.");
     }
 
     private void onUnlock() {
@@ -385,7 +394,7 @@ public class HPMUI {
         });
 
         // Stack every items vertically in the edit panel
-        JPanel editPanel = new JPanel(new java.awt.GridLayout(0, 1, 5, 5));
+        JPanel editPanel = new JPanel(new GridLayout(0, 1, 5, 5));
         editPanel.add(new JLabel("Label:"));
         editPanel.add(labelField);
         editPanel.add(new JLabel("Username/email:"));
@@ -461,14 +470,7 @@ public class HPMUI {
         }
 
         // If a secret has been set, show the 2FA code
-        try {
-            String code = TOTP.generateCode(selected.TOTPsecret);
-            long secondsLeft = 30 - (System.currentTimeMillis() / 1000L % 30);
-            JOptionPane.showMessageDialog(frame,
-                    "Code: " + code + "\nExpires in " + secondsLeft + "s");
-        } catch (Exception err) {
-            JOptionPane.showMessageDialog(frame, "Invalid 2FA secret.");
-        }
+        showLiveTotp(selected);
     }
 
     private void onLock() {
@@ -482,10 +484,12 @@ public class HPMUI {
     private void onSort() {
         String choice = (String) sortedBox.getSelectedItem();
         switch (choice) {
-            case "Label (A-Z)"    -> entries.sort(java.util.Comparator.comparing(x -> x.label.toLowerCase()));
-            case "Label (Z-A)"    -> entries.sort(java.util.Comparator.comparing((PasswordEntry x) -> x.label.toLowerCase()).reversed());
-            case "Username (A-Z)" -> entries.sort(java.util.Comparator.comparing(x -> x.username.toLowerCase()));
-            case "Username (Z-A)" -> entries.sort(java.util.Comparator.comparing((PasswordEntry x) -> x.username.toLowerCase()).reversed());
+            case "Label (A-Z)"    -> entries.sort(Comparator.comparing(x -> x.label.toLowerCase()));
+            case "Label (Z-A)"    -> entries.sort(Comparator.comparing((PasswordEntry x) -> x.label.toLowerCase()).reversed());
+            case "Username (A-Z)" -> entries.sort(Comparator.comparing(x -> x.username.toLowerCase()));
+            case "Username (Z-A)" -> entries.sort(Comparator.comparing((PasswordEntry x) -> x.username.toLowerCase()).reversed());
+            case null -> {}
+            default -> throw new IllegalStateException("Unexpected value: " + choice);
         }
         refreshList();
     }
@@ -501,10 +505,52 @@ public class HPMUI {
     // Utility
     private boolean vaultExists() {
         try {
-            java.nio.file.Path file = java.nio.file.Path.of("vault.dat");
-            return java.nio.file.Files.exists(file) && java.nio.file.Files.size(file) > 0;
+            Path file = Path.of("vault.dat");
+            return Files.exists(file) && Files.size(file) > 0;
         } catch (Exception err) {
             return false;
         }
+    }
+
+    private void showLiveTotp(PasswordEntry entry) {
+        JDialog dialog = new JDialog(frame, "2FA code", false);
+        JLabel codeLabel = new JLabel("", SwingConstants.CENTER);
+        codeLabel.setFont(codeLabel.getFont().deriveFont(28f));
+        JLabel countDownLabel = new JLabel("", SwingConstants.CENTER);
+        JButton copyBtn = new JButton("Copy");
+
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        panel.add(countDownLabel, BorderLayout.NORTH);
+        panel.add(codeLabel, BorderLayout.CENTER);
+        panel.add(copyBtn, BorderLayout.SOUTH);
+
+        Runnable update = () -> {
+            try {
+                String code = TOTP.generateCode(entry.TOTPsecret);
+                long secondsLeft = 30 - (System.currentTimeMillis() / 1000L % 30);
+                codeLabel.setText(code);
+                countDownLabel.setText("Expires in " + secondsLeft + "s");
+            } catch (Exception err) {
+                codeLabel.setText("Invalid secret.");
+                countDownLabel.setText("");
+            }
+        };
+        update.run();
+        Timer timer = new Timer(1000, e -> update.run());
+        timer.start();
+
+        copyBtn.addActionListener(e -> {
+            try { autoClearCopy(TOTP.generateCode(entry.TOTPsecret)); } catch (Exception _ ) { }
+        });
+
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent e) { timer.stop(); }
+        });
+
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(frame);
+        dialog.setVisible(true);
     }
 }

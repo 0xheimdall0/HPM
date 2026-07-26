@@ -10,10 +10,10 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.*;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
@@ -89,10 +89,10 @@ public class HPMUI {
     }
 
     private void setupAutoLock() {
-        autoLockTimer = new Timer(autoLockMinutes * 60 * 1000, e -> onLock());
+        autoLockTimer = new Timer(autoLockMinutes * 60 * 1000, _ -> onLock());
         autoLockTimer.setRepeats(false);
 
-        Toolkit.getDefaultToolkit().addAWTEventListener(ev -> {
+        Toolkit.getDefaultToolkit().addAWTEventListener(_ -> {
             if (autoLockTimer.isRunning()) autoLockTimer.restart();
         }, AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK | AWTEvent.MOUSE_MOTION_EVENT_MASK);
     }
@@ -147,18 +147,18 @@ public class HPMUI {
             opt.useSymbols       = symbolBox.isSelected();
             opt.excludeAmbiguous = ambiguousBox.isSelected();
         };
-        lowerBox.addActionListener(e -> syncOptions.run());
-        upperBox.addActionListener(e -> syncOptions.run());
-        numbersBox.addActionListener(e -> syncOptions.run());
-        symbolBox.addActionListener(e -> syncOptions.run());
-        ambiguousBox.addActionListener(e -> syncOptions.run());
-        lengthSpinner.addChangeListener(e -> syncOptions.run());
+        lowerBox.addActionListener(_ -> syncOptions.run());
+        upperBox.addActionListener(_ -> syncOptions.run());
+        numbersBox.addActionListener(_ -> syncOptions.run());
+        symbolBox.addActionListener(_ -> syncOptions.run());
+        ambiguousBox.addActionListener(_ -> syncOptions.run());
+        lengthSpinner.addChangeListener(_ -> syncOptions.run());
 
-        doGenerateBtn.addActionListener(e -> {
+        doGenerateBtn.addActionListener(_ -> {
             syncOptions.run();
             genOutput.setText(PasswordGenerator.generatePassword(opt));
         });
-        copyGenBtn.addActionListener(e -> autoClearCopy(genOutput.getText()));
+        copyGenBtn.addActionListener(_ -> autoClearCopy(genOutput.getText()));
 
         JPanel genContent = new JPanel(new GridLayout(0, 1, 5, 5));
         genContent.add(new JLabel("Length:"));
@@ -183,19 +183,22 @@ public class HPMUI {
         JSpinner autoLockTime = new JSpinner(new SpinnerNumberModel(autoLockMinutes, 1, 60, 1));
         autoLockTime.setEnabled(autoLockEnabled);
 
-        autoLockBox.addActionListener(e -> {
+        autoLockBox.addActionListener(_ -> {
             autoLockEnabled = autoLockBox.isSelected();
             autoLockTime.setEnabled(autoLockEnabled);
             if (autoLockEnabled && sessionPassword != null) autoLockTimer.restart();
             else autoLockTimer.stop();
         });
 
-        autoLockTime.addChangeListener(e -> {
+        autoLockTime.addChangeListener(_ -> {
             autoLockMinutes = (int) autoLockTime.getValue();
             autoLockTimer.setInitialDelay(autoLockMinutes * 60 * 1000);
             autoLockTimer.setDelay(autoLockMinutes * 60 * 1000);
             if (autoLockTimer.isRunning()) autoLockTimer.restart();
         });
+
+        JButton securityCheckBtn = new JButton("Security check");
+        securityCheckBtn.addActionListener(_ -> onSecurityCheck());
 
         JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
         content.add(new JLabel("Security"));
@@ -203,6 +206,7 @@ public class HPMUI {
         content.add(autoLockBox);
         content.add(new JLabel("Auto-lock after (minutes):"));
         content.add(autoLockTime);
+        content.add(securityCheckBtn);
 
         JPanel settingsPanel = new JPanel(new BorderLayout());
         settingsPanel.add(content, BorderLayout.NORTH);
@@ -220,9 +224,9 @@ public class HPMUI {
         JButton navVault = new JButton("Vault");
         JButton navGen = new JButton("Generator");
         JButton navSettings = new JButton("Settings");
-        navVault.addActionListener(e -> cardLayout.show(contentArea, "Vault"));
-        navGen.addActionListener(e -> cardLayout.show(contentArea, "Generator"));
-        navSettings.addActionListener(e -> cardLayout.show(contentArea, "Settings"));
+        navVault.addActionListener(_ -> cardLayout.show(contentArea, "Vault"));
+        navGen.addActionListener(_ -> cardLayout.show(contentArea, "Generator"));
+        navSettings.addActionListener(_ -> cardLayout.show(contentArea, "Settings"));
 
         JPanel navButtons = new JPanel(new GridLayout(0, 1, 0, 8));
         navButtons.add(navVault);
@@ -286,17 +290,17 @@ public class HPMUI {
 
     // Event-triggered methods
     private void wireHandlers() {
-        passwordField.addActionListener(e -> unlockBtn.doClick());
-        unlockBtn.addActionListener(e -> onUnlock());
-        addEntry.addActionListener(e -> onAdd());
-        editBtn.addActionListener(e -> onEdit());
-        deleteEntry.addActionListener(e -> onDelete());
-        seePWD.addActionListener(e -> onShowPassword());
-        copyPWD.addActionListener(e -> onCopyPassword());
-        TOTPbtn.addActionListener(e -> onTotp());
-        lockBtn.addActionListener(e -> onLock());
-        sortedBox.addActionListener(e -> onSort());
-        changePwdBtn.addActionListener(e -> onChangePassword());
+        passwordField.addActionListener( _ -> unlockBtn.doClick());
+        unlockBtn.addActionListener(_ -> onUnlock());
+        addEntry.addActionListener(_ -> onAdd());
+        editBtn.addActionListener(_ -> onEdit());
+        deleteEntry.addActionListener(_ -> onDelete());
+        seePWD.addActionListener(_ -> onShowPassword());
+        copyPWD.addActionListener(_ -> onCopyPassword());
+        TOTPbtn.addActionListener(_ -> onTotp());
+        lockBtn.addActionListener(_ -> onLock());
+        sortedBox.addActionListener(_ -> onSort());
+        changePwdBtn.addActionListener(_ -> onChangePassword());
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { refreshList(); }
             public void removeUpdate(DocumentEvent e) { refreshList(); }
@@ -316,7 +320,7 @@ public class HPMUI {
     private void autoClearCopy(String password) {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(new StringSelection(password), null);
-        Timer timer = new Timer(20000, ev -> {
+        Timer timer = new Timer(20000, _ -> {
             try {
                 String current = (String) clipboard.getData(DataFlavor.stringFlavor);
                 if (current.equals(password)) clipboard.setContents(new StringSelection(""), null);
@@ -349,22 +353,25 @@ public class HPMUI {
         else if (label.isBlank()) {
             JOptionPane.showMessageDialog(frame, "Every field is required.");
             return;
-        };
+        }
         String username = JOptionPane.showInputDialog("Username: ");
         if (username == null) return;
         else if (username.isBlank()) {
             JOptionPane.showMessageDialog(frame, "Every field is required.");
             return;
-        };
+        }
         int choice = JOptionPane.showConfirmDialog(frame, "Generate password randomly?",
                 "Password", JOptionPane.YES_NO_OPTION);
         String password;
         if (choice == JOptionPane.YES_OPTION) {
             password = PasswordGenerator.generatePassword(opt);
         } else {
-            password = JOptionPane.showInputDialog("Password: ");
-            if (password == null) return;
-            else if (password.isBlank()) {
+            JPasswordField pwField = new JPasswordField(20);
+            int res = JOptionPane.showConfirmDialog(frame, pwField, "Enter password",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (res != JOptionPane.OK_OPTION) return;
+            password = new String(pwField.getPassword());
+            if (password.isBlank()) {
                 JOptionPane.showMessageDialog(frame, "Every field is required.");
                 return;
             }
@@ -388,12 +395,12 @@ public class HPMUI {
 
         // Show / hide password
         char maskChar = passwordFieldEdit.getEchoChar();
-        showPWD.addActionListener(ev -> {
+        showPWD.addActionListener(_ -> {
             if (showPWD.isSelected()) passwordFieldEdit.setEchoChar((char) 0);
             else passwordFieldEdit.setEchoChar(maskChar);
         });
 
-        // Stack every items vertically in the edit panel
+        // Stack every item vertically in the edit panel
         JPanel editPanel = new JPanel(new GridLayout(0, 1, 5, 5));
         editPanel.add(new JLabel("Label:"));
         editPanel.add(labelField);
@@ -502,6 +509,36 @@ public class HPMUI {
         JOptionPane.showMessageDialog(frame, "Master password successfully changed.");
     }
 
+    private void onSecurityCheck() {
+        if (sessionPassword == null) {
+            JOptionPane.showMessageDialog(frame, "Please unlock the vault first.");
+            return;
+        }
+
+        Map<String, Integer> counts = new HashMap<>();
+        for (PasswordEntry elt : entries) {
+            counts.merge(elt.password, 1, Integer::sum);
+        }
+
+        // Build problem report
+        StringBuilder report = new StringBuilder();
+        for (PasswordEntry elt : entries) {
+            List<String> issues = new ArrayList<>();
+            int c = counts.get(elt.password);
+            if (elt.password.length() < 12) issues.add("too short");
+            if (charClasses(elt.password) < 3) issues.add("low variety");
+            if (c > 1) issues.add("reused by " + c + " entries");
+            if (!issues.isEmpty()) {
+                report.append(elt.label).append(" - ").append(String.join(", ", issues)).append("\n");
+            }
+        }
+
+        String message = report.length() == 0 ? "No issues found." : report.toString();
+        JTextArea area = new JTextArea(message, 12, 48);
+        area.setEditable(false);
+        JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Security check", JOptionPane.INFORMATION_MESSAGE);
+    }
+
     // Utility
     private boolean vaultExists() {
         try {
@@ -537,10 +574,10 @@ public class HPMUI {
             }
         };
         update.run();
-        Timer timer = new Timer(1000, e -> update.run());
+        Timer timer = new Timer(1000, _ -> update.run());
         timer.start();
 
-        copyBtn.addActionListener(e -> {
+        copyBtn.addActionListener(_ -> {
             try { autoClearCopy(TOTP.generateCode(entry.TOTPsecret)); } catch (Exception _ ) { }
         });
 
@@ -552,5 +589,14 @@ public class HPMUI {
         dialog.pack();
         dialog.setLocationRelativeTo(frame);
         dialog.setVisible(true);
+    }
+
+    private int charClasses(String pw) {
+        int classes = 0;
+        if (pw.matches(".*[a-z].*")) classes++;   // has lowercase
+        if (pw.matches(".*[A-Z].*")) classes++;   // has uppercase
+        if (pw.matches(".*[0-9].*")) classes++;   // has a digit
+        if (pw.matches(".*[^a-zA-Z0-9].*")) classes++;  // has a symbol
+        return classes;
     }
 }

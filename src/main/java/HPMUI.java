@@ -226,6 +226,15 @@ public class HPMUI {
             public void removeUpdate(DocumentEvent e) { refreshList(); }
             public void changedUpdate(DocumentEvent e) { refreshList(); }
         });
+        entriesDisplay.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    PasswordEntry selected = entriesDisplay.getSelectedValue();
+                    if (selected != null) autoClearCopy(selected.password);
+                }
+            }
+        });
     }
 
     private void autoClearCopy(String password) {

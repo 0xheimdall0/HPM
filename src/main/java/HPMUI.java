@@ -33,6 +33,7 @@ public class HPMUI {
     private final JButton copyPWD      = new JButton("Copy password");
     private final JButton TOTPbtn      = new JButton("2FA");
     private final JButton lockBtn      = new JButton("Lock");
+    private final JButton changePwdBtn = new JButton("Change master password");
 
     public static void main(String[] args) {
         com.formdev.flatlaf.FlatDarculaLaf.setup();
@@ -44,7 +45,8 @@ public class HPMUI {
         buildFrame();
         JPanel vaultPanel = buildVaultPanel();
         JPanel generatorPanel = buildGeneratorPanel();
-        buildNavigation(vaultPanel, generatorPanel);
+        JPanel settingsPanel = buildSettingsPanel();
+        buildNavigation(vaultPanel, generatorPanel, settingsPanel);
         wireHandlers();
         setUnlocked(false);
         frame.setVisible(true);
@@ -61,6 +63,7 @@ public class HPMUI {
                 BorderFactory.createEmptyBorder(10, 20, 10, 20));
     }
 
+    // Panel builders
     private JPanel buildVaultPanel() {
         JPanel topPanel = new JPanel();
         topPanel.add(passwordField);
@@ -141,20 +144,35 @@ public class HPMUI {
         return generatorPanel;
     }
 
-    private void buildNavigation(JPanel vaultPanel, JPanel generatorPanel) {
+    private JPanel buildSettingsPanel() {
+        JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
+        content.add(new JLabel("Security"));
+        content.add(changePwdBtn);
+
+        JPanel settingsPanel = new JPanel(new BorderLayout());
+        settingsPanel.add(content, BorderLayout.NORTH);
+        settingsPanel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        return settingsPanel;
+    }
+
+    private void buildNavigation(JPanel vaultPanel, JPanel generatorPanel, JPanel settingPanel) {
         CardLayout cardLayout = new CardLayout();
         JPanel contentArea = new JPanel(cardLayout);
         contentArea.add(vaultPanel, "Vault");
         contentArea.add(generatorPanel, "Generator");
+        contentArea.add(settingPanel, "Settings");
 
         JButton navVault = new JButton("Vault");
         JButton navGen = new JButton("Generator");
+        JButton navSettings = new JButton("Settings");
         navVault.addActionListener(e -> cardLayout.show(contentArea, "Vault"));
         navGen.addActionListener(e -> cardLayout.show(contentArea, "Generator"));
+        navSettings.addActionListener(e -> cardLayout.show(contentArea, "Settings"));
 
         JPanel navButtons = new JPanel(new GridLayout(0, 1, 0, 8));
         navButtons.add(navVault);
         navButtons.add(navGen);
+        navButtons.add(navSettings);
         JPanel navPanel = new JPanel(new BorderLayout());
         navPanel.add(navButtons, BorderLayout.NORTH);
         navPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 15));
@@ -163,6 +181,7 @@ public class HPMUI {
         frame.add(contentArea, BorderLayout.CENTER);
     }
 
+    // Update methods
     private void setUnlocked(boolean unlocked) {
         addEntry.setEnabled(unlocked);
         editBtn.setEnabled(unlocked);
@@ -171,10 +190,10 @@ public class HPMUI {
         copyPWD.setEnabled(unlocked);
         TOTPbtn.setEnabled(unlocked);
         lockBtn.setEnabled(unlocked);
+        changePwdBtn.setEnabled(unlocked);
         unlockBtn.setEnabled(!unlocked);
     }
 
-    // Update methods
     private void refreshList() {
         listModel.clear();
         String q = searchField.getText().toLowerCase();
@@ -201,6 +220,7 @@ public class HPMUI {
         TOTPbtn.addActionListener(e -> onTotp());
         lockBtn.addActionListener(e -> onLock());
         sortedBox.addActionListener(e -> onSort());
+        changePwdBtn.addActionListener(e -> onChangePassword());
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { refreshList(); }
             public void removeUpdate(DocumentEvent e) { refreshList(); }
@@ -387,5 +407,30 @@ public class HPMUI {
             case "Username (Z-A)" -> entries.sort(java.util.Comparator.comparing((PasswordEntry x) -> x.username.toLowerCase()).reversed());
         }
         refreshList();
+    }
+
+    private void onChangePassword() {
+        JPasswordField newPwd = new JPasswordField(20);
+        JPasswordField confirmPwd = new JPasswordField(20);
+
+        JPanel panel = new JPanel(new GridLayout(0, 1, 1, 5));
+        panel.add(new JLabel("New master password:"));
+        panel.add(newPwd);
+        panel.add(new JLabel("Confirm new password."));
+        panel.add(confirmPwd);
+
+        int result = JOptionPane.showConfirmDialog(frame, panel, "Change master password",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        String pwd1 = new String(newPwd.getPassword());
+        String pwd2 = new String(confirmPwd.getPassword());
+
+        if (pwd1.isBlank()) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return; }
+        if (!pwd1.equals(pwd2)) { JOptionPane.showMessageDialog(frame, "Password do not match."); return; }
+
+        sessionPassword = pwd1;
+        autoSave();
+        JOptionPane.showMessageDialog(frame, "Master password successfully changed.");
     }
 }

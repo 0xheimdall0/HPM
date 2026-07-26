@@ -53,6 +53,7 @@ public class HPMUI {
 
     // UI constructor
     public HPMUI() {
+        loadSettings();
         buildFrame();
         JPanel vaultPanel = buildVaultPanel();
         JPanel generatorPanel = buildGeneratorPanel();
@@ -188,6 +189,7 @@ public class HPMUI {
             autoLockTime.setEnabled(autoLockEnabled);
             if (autoLockEnabled && sessionPassword != null) autoLockTimer.restart();
             else autoLockTimer.stop();
+            saveSettings();
         });
 
         autoLockTime.addChangeListener(_ -> {
@@ -195,6 +197,7 @@ public class HPMUI {
             autoLockTimer.setInitialDelay(autoLockMinutes * 60 * 1000);
             autoLockTimer.setDelay(autoLockMinutes * 60 * 1000);
             if (autoLockTimer.isRunning()) autoLockTimer.restart();
+            saveSettings();
         });
 
         JButton securityCheckBtn = new JButton("Security check");
@@ -533,7 +536,7 @@ public class HPMUI {
             }
         }
 
-        String message = report.length() == 0 ? "No issues found." : report.toString();
+        String message = report.isEmpty() ? "No issues found." : report.toString();
         JTextArea area = new JTextArea(message, 12, 48);
         area.setEditable(false);
         JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Security check", JOptionPane.INFORMATION_MESSAGE);
@@ -598,5 +601,26 @@ public class HPMUI {
         if (pw.matches(".*[0-9].*")) classes++;   // has a digit
         if (pw.matches(".*[^a-zA-Z0-9].*")) classes++;  // has a symbol
         return classes;
+    }
+
+    // Persistence handlers
+    private void loadSettings() {
+        Path file = Path.of("settings.properties");
+        if (!Files.exists(file)) return;
+        Properties props = new Properties();
+        try (var in = Files.newInputStream(file)) {
+            props.load(in);
+            autoLockEnabled = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
+            autoLockMinutes = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
+        } catch (Exception _) { }
+    }
+
+    private void saveSettings() {
+        Properties props = new Properties();
+        props.setProperty("autoLockEnabled", String.valueOf(autoLockEnabled));
+        props.setProperty("autoLockMinutes", String.valueOf(autoLockMinutes));
+        try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
+            props.store(out, "HPM settings");
+        } catch (Exception _) { }
     }
 }

@@ -51,6 +51,7 @@ public class HPMUI {
         setUnlocked(false);
         frame.setVisible(true);
         passwordField.requestFocusInWindow();
+        if (!vaultExists()) firstRunSetup();
     }
 
     // Initial build methods
@@ -61,6 +62,18 @@ public class HPMUI {
         frame.setLocationRelativeTo(null);
         ((JComponent) frame.getContentPane()).setBorder(
                 BorderFactory.createEmptyBorder(10, 20, 10, 20));
+    }
+
+    private void firstRunSetup() {
+        JOptionPane.showMessageDialog(frame, "Welcome to HPM. Please setup a secure password that will protect" +
+                " all your other passwords. It is highly advised not to store it online. Do not share it with anyone.");
+        String pwd = null;
+        while (pwd == null) pwd = promptNewPassword("Create master password");
+        sessionPassword = pwd;
+        entries.clear();
+        autoSave();
+        setUnlocked(true);
+        JOptionPane.showMessageDialog(frame, "Your secure vault has been created, you're all set.");
     }
 
     // Panel builders
@@ -206,6 +219,25 @@ public class HPMUI {
     private void autoSave() {
         try { SaveLogic.save(entries, sessionPassword); }
         catch (Exception err) { JOptionPane.showMessageDialog(frame, "Data could not be saved."); }
+    }
+
+    private String promptNewPassword(String title) {
+        JPasswordField pwd1 = new JPasswordField(20);
+        JPasswordField pwd2 = new JPasswordField(20);
+        JPanel panel = new JPanel(new GridLayout(0, 1, 1, 5));
+        panel.add(new JLabel("Master password:"));
+        panel.add(pwd1);
+        panel.add(new JLabel("Confirm password:"));
+        panel.add(pwd2);
+
+        int result = JOptionPane.showConfirmDialog(frame, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return null;
+
+        String p1 = new String(pwd1.getPassword());
+        String p2 = new String(pwd2.getPassword());
+        if (p1.isBlank()) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
+        if (!p2.equals(p1)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
+        return p1;
     }
 
     // Event-triggered methods
@@ -419,27 +451,20 @@ public class HPMUI {
     }
 
     private void onChangePassword() {
-        JPasswordField newPwd = new JPasswordField(20);
-        JPasswordField confirmPwd = new JPasswordField(20);
-
-        JPanel panel = new JPanel(new GridLayout(0, 1, 1, 5));
-        panel.add(new JLabel("New master password:"));
-        panel.add(newPwd);
-        panel.add(new JLabel("Confirm new password."));
-        panel.add(confirmPwd);
-
-        int result = JOptionPane.showConfirmDialog(frame, panel, "Change master password",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (result != JOptionPane.OK_OPTION) return;
-
-        String pwd1 = new String(newPwd.getPassword());
-        String pwd2 = new String(confirmPwd.getPassword());
-
-        if (pwd1.isBlank()) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return; }
-        if (!pwd1.equals(pwd2)) { JOptionPane.showMessageDialog(frame, "Password do not match."); return; }
-
-        sessionPassword = pwd1;
+        String pwd = promptNewPassword("Change master password");
+        if (pwd == null) return;
+        sessionPassword = pwd;
         autoSave();
         JOptionPane.showMessageDialog(frame, "Master password successfully changed.");
+    }
+
+    // Utility
+    private boolean vaultExists() {
+        try {
+            java.nio.file.Path file = java.nio.file.Path.of("vault.dat");
+            return java.nio.file.Files.exists(file) && java.nio.file.Files.size(file) > 0;
+        } catch (Exception err) {
+            return false;
+        }
     }
 }

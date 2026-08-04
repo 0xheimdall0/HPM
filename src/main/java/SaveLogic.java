@@ -24,10 +24,12 @@ public class SaveLogic {
         byte[] encrypted = cipher.doFinal(plainText.getBytes());
 
         // Save logic combines the nonce required to decrypt and the encrypted hash
-        byte[] combined = new byte[nonce.length + encrypted.length + salt.length];
-        System.arraycopy(salt, 0, combined, 0, salt.length);
-        System.arraycopy(nonce, 0, combined, salt.length, nonce.length);
-        System.arraycopy(encrypted, 0, combined, salt.length + nonce.length, encrypted.length);
+        byte VERSION = 1;
+        byte[] combined = new byte[1 + nonce.length + encrypted.length + salt.length];
+        combined[0] = VERSION;
+        System.arraycopy(salt, 0, combined, 1, salt.length);
+        System.arraycopy(nonce, 0, combined, 1 + salt.length, nonce.length);
+        System.arraycopy(encrypted, 0, combined, 1 + salt.length + nonce.length, encrypted.length);
 
         // Write the combination to the vault
         Files.write(Path.of("vault.dat"), combined);

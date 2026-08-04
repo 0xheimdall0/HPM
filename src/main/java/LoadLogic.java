@@ -26,9 +26,12 @@ public class LoadLogic {
         }
 
         byte[] fromFile = Files.readAllBytes(file);
-        byte[] loadedSalt = Arrays.copyOfRange(fromFile, 0, 16);
-        byte[] loadedNonce = Arrays.copyOfRange(fromFile, 16, 28);
-        byte[] cipherText = Arrays.copyOfRange(fromFile, 28, fromFile.length);
+        byte version = fromFile[0];
+        if (version != 1) throw new Exception("Unsupported vault version: " + version);
+
+        byte[] loadedSalt = Arrays.copyOfRange(fromFile, 1, 17);
+        byte[] loadedNonce = Arrays.copyOfRange(fromFile, 17, 29);
+        byte[] cipherText = Arrays.copyOfRange(fromFile, 29, fromFile.length);
 
         SecretKeySpec key = DeriveKey.deriveKey(masterPassword, loadedSalt);
 

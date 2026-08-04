@@ -8,6 +8,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -44,6 +45,7 @@ public class HPMUI {
     private final JButton TOTPbtn      = new JButton("2FA");
     private final JButton lockBtn      = new JButton("Lock");
     private final JButton changePwdBtn = new JButton("Change master password");
+    private final JButton importTotpBtn = new JButton("Import 2FA (QR)");
 
     private boolean autoLockEnabled = false;
     private int autoLockMinutes = 5;
@@ -73,7 +75,7 @@ public class HPMUI {
     // Initial build methods
     private void buildFrame() {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(800, 600);
+        frame.setSize(1000, 600);
         frame.setLayout(new BorderLayout());
         frame.setLocationRelativeTo(null);
         ((JComponent) frame.getContentPane()).setBorder(
@@ -123,6 +125,7 @@ public class HPMUI {
         buttonPanel.add(seePWD);
         buttonPanel.add(copyPWD);
         buttonPanel.add(TOTPbtn);
+        buttonPanel.add(importTotpBtn);
 
         JPanel vaultPanel = new JPanel(new BorderLayout());
         vaultPanel.add(topPanel, BorderLayout.NORTH);
@@ -257,6 +260,7 @@ public class HPMUI {
         lockBtn.setEnabled(unlocked);
         changePwdBtn.setEnabled(unlocked);
         unlockBtn.setEnabled(!unlocked);
+        importTotpBtn.setEnabled(unlocked);
         if (unlocked && autoLockEnabled) autoLockTimer.restart();
         else autoLockTimer.stop();
     }
@@ -307,6 +311,7 @@ public class HPMUI {
         lockBtn.addActionListener(_ -> onLock());
         sortedBox.addActionListener(_ -> onSort());
         changePwdBtn.addActionListener(_ -> onChangePassword());
+        importTotpBtn.addActionListener(_ -> onImportTotpQR());
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { refreshList(); }
             public void removeUpdate(DocumentEvent e) { refreshList(); }
@@ -548,6 +553,29 @@ public class HPMUI {
         JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Security check", JOptionPane.INFORMATION_MESSAGE);
     }
 
+    private void onImportTotpQR() {
+        PasswordEntry selected = entriesDisplay.getSelectedValue();
+        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); };
+
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) return;
+        File file = chooser.getSelectedFile();
+
+        try {
+            String url = QRReader.decode(file);
+            String secret = extractSecret(url);
+            if (secret == null) {
+                JOptionPane.showMessageDialog(frame, "No 2FA secret found in that QR code.");
+                return;
+            }
+            selected.TOTPsecret = secret;
+            autoSave();
+            JOptionPane.showMessageDialog(frame, "2FA secret imported for " + selected.label + ".");
+        } catch (Exception err) {
+            JOptionPane.showMessageDialog(frame, "Could not read a QR code from that image.");
+        }
+    }
+
     // Utility and helpers
     private boolean vaultExists() {
         try {
@@ -614,6 +642,16 @@ public class HPMUI {
         new SecureRandom().nextBytes(salt);
         sessionSalt = salt;
         sessionKey = DeriveKey.deriveKey(pw, salt);
+    }
+
+    private String extractSecret(String otpAuthUrl) {
+        int q = otpAuthUrl.indexOf("?");
+        if (q < 0) return null;
+        for (String param : otpAuthUrl.substring(q + 1).split("&")) {
+            String[] kv = param.split("=", 2);
+            if (kv.length == 2 && kv[0].equalsIgnoreCase("secret")) return kv[1];
+        }
+        return null;
     }
 
     // Persistence handlers

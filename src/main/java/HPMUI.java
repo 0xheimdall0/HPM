@@ -85,9 +85,10 @@ public class HPMUI {
     private void firstRunSetup() {
         JOptionPane.showMessageDialog(frame, "Welcome to HPM. Please setup a secure password that will protect" +
                 " all your other passwords. It is highly advised not to store it online. Do not share it with anyone.");
-        String pwd = null;
+        char[] pwd = null;
         while (pwd == null) pwd = promptNewPassword("Create master password");
         setNewMasterKey(pwd);
+        Arrays.fill(pwd, '\0');
         entries.clear();
         autoSave();
         setUnlocked(true);
@@ -284,7 +285,7 @@ public class HPMUI {
         catch (Exception err) { JOptionPane.showMessageDialog(frame, "Data could not be saved."); }
     }
 
-    private String promptNewPassword(String title) {
+    private char[] promptNewPassword(String title) {
         JPasswordField pwd1 = new JPasswordField(20);
         JPasswordField pwd2 = new JPasswordField(20);
         JPanel panel = new JPanel(new GridLayout(0, 1, 1, 5));
@@ -296,10 +297,11 @@ public class HPMUI {
         int result = JOptionPane.showConfirmDialog(frame, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result != JOptionPane.OK_OPTION) return null;
 
-        String p1 = new String(pwd1.getPassword());
-        String p2 = new String(pwd2.getPassword());
-        if (p1.isBlank()) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
-        if (!p2.equals(p1)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
+        char[] p1 = pwd1.getPassword();
+        char[] p2 = pwd2.getPassword();
+        if (p1.length == 0) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
+        if (!java.util.Arrays.equals(p1, p2)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
+        java.util.Arrays.fill(p2, '\0');   // wipe the confirm copy
         return p1;
     }
 
@@ -348,9 +350,9 @@ public class HPMUI {
     }
 
     private void onUnlock() {
-        String masterPassword = new String(passwordField.getPassword());
+        char[] pw = passwordField.getPassword();
         try {
-            VaultData data = LoadLogic.load(masterPassword);
+            VaultData data = LoadLogic.load(pw);
             entries.clear();
             entries.addAll(data.entries());
             sessionKey  = data.key();
@@ -361,6 +363,9 @@ public class HPMUI {
             JOptionPane.showMessageDialog(frame, "Unlocked! " + entries.size() + " entries loaded.");
         } catch (Exception err) {
             JOptionPane.showMessageDialog(frame, "Wrong password!");
+            passwordField.setText("");
+        } finally {
+            Arrays.fill(pw, '\0');
             passwordField.setText("");
         }
     }
@@ -521,7 +526,7 @@ public class HPMUI {
     }
 
     private void onChangePassword() {
-        String pwd = promptNewPassword("Change master password");
+        char[] pwd = promptNewPassword("Change master password");
         if (pwd == null) return;
         setNewMasterKey(pwd);
         autoSave();
@@ -664,7 +669,7 @@ public class HPMUI {
         return classes;
     }
 
-    private void setNewMasterKey(String pw) {
+    private void setNewMasterKey(char[] pw) {
         byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);
         sessionSalt = salt;

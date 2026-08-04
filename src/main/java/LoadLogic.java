@@ -14,7 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class LoadLogic {
-    protected static VaultData load(String masterPassword) throws Exception {
+    protected static VaultData load(char[] masterPassword) throws Exception {
         Path file = Path.of("vault.dat");
 
         // If there is no vault yet, new salt + key, empty entries

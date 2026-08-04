@@ -206,10 +206,15 @@ public class HPMUI {
             saveSettings();
         });
 
+        JButton migrateGoogleAuthTotpBtn = new JButton("Migrate TOTP from Google Auth");
+        migrateGoogleAuthTotpBtn.addActionListener(_ -> onImportGoogleAuth());
+
         JButton securityCheckBtn = new JButton("Security check");
         securityCheckBtn.addActionListener(_ -> onSecurityCheck());
 
         JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
+        content.add(new JLabel("Utility"));
+        content.add(migrateGoogleAuthTotpBtn);
         content.add(new JLabel("Security"));
         content.add(changePwdBtn);
         content.add(autoLockBox);
@@ -568,11 +573,33 @@ public class HPMUI {
                 JOptionPane.showMessageDialog(frame, "No 2FA secret found in that QR code.");
                 return;
             }
+            assert selected != null;
             selected.TOTPsecret = secret;
             autoSave();
             JOptionPane.showMessageDialog(frame, "2FA secret imported for " + selected.label + ".");
         } catch (Exception err) {
             JOptionPane.showMessageDialog(frame, "Could not read a QR code from that image.");
+        }
+    }
+
+    private void onImportGoogleAuth() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) return;
+        File file = chooser.getSelectedFile();
+        try {
+            String url = QRReader.decode(file);
+            List<GoogleAuthMigration.Account> accounts = GoogleAuthMigration.parse(url);
+            for (GoogleAuthMigration.Account acc : accounts) {
+                String label = acc.issuer().isBlank() ? acc.name() : acc.issuer();
+                PasswordEntry entry = new PasswordEntry(label, acc.name(), "");
+                entry.TOTPsecret = acc.base32Secret();
+                entries.add(entry);
+            }
+            autoSave();
+            refreshList();
+            JOptionPane.showMessageDialog(frame, accounts.size() + " accounts imported.");
+        } catch (Exception err) {
+            JOptionPane.showMessageDialog(frame, "Could not import accounts from that QR code.");
         }
     }
 

@@ -1,44 +1,44 @@
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 public class LoadLogic {
-    protected static List<PasswordEntry> load(String masterPassword) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    protected static VaultData load(String masterPassword) throws Exception {
         Path file = Path.of("vault.dat");
 
-        // Check whether vault.dat is empty
+        // If there is no vault yet, new salt + key, empty entries
         if (!Files.exists(file) || Files.size(file) == 0) {
-            return new ArrayList<>();
+            byte[] salt = new byte[16];
+            new SecureRandom().nextBytes(salt);
+            SecretKeySpec key = DeriveKey.deriveKey(masterPassword, salt);
+            return new VaultData(new ArrayList<>(), key, salt);
         }
 
-        // Read from the vault
         byte[] fromFile = Files.readAllBytes(file);
-
-        // Load and split the data
         byte[] loadedSalt = Arrays.copyOfRange(fromFile, 0, 16);
         byte[] loadedNonce = Arrays.copyOfRange(fromFile, 16, 28);
         byte[] cipherText = Arrays.copyOfRange(fromFile, 28, fromFile.length);
-        GCMParameterSpec loadedSpec = new GCMParameterSpec(128, loadedNonce);
 
-        // Setup the key
         SecretKeySpec key = DeriveKey.deriveKey(masterPassword, loadedSalt);
 
-        // Sets the "machine" to "decrypt", spits out the result
-        cipher.init(Cipher.DECRYPT_MODE, key, loadedSpec);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, loadedNonce));
         byte[] decrypted = cipher.doFinal(cipherText);
 
-        String decryptedText = new String(decrypted);
+        Type listType = new TypeToken<List<PasswordEntry>>(){}.getType();
+        List<PasswordEntry> loadedEntries = new Gson().fromJson(new String(decrypted), listType);
 
-        // Split the decrypted text into separate strings
-        java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<PasswordEntry>>(){}.getType();
-        List<PasswordEntry> loadedEntries = new com.google.gson.Gson().fromJson(decryptedText, listType);
-
-        return loadedEntries;
+        return new VaultData(loadedEntries, key, loadedSalt);
     }
 }

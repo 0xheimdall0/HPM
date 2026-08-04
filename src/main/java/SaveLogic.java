@@ -7,20 +7,13 @@ import java.security.SecureRandom;
 import java.util.List;
 
 public class SaveLogic {
-    protected static void save(List<PasswordEntry> entries, String masterPassword) throws Exception {
+    protected static void save(List<PasswordEntry> entries, SecretKeySpec key, byte[] salt) throws Exception {
         // Turns the entries into a single Json string that can be easily encrypted
         String plainText = new com.google.gson.Gson().toJson(entries);
 
         // Creates a random 12 byte number
         byte[] nonce = new byte[12];
         new SecureRandom().nextBytes(nonce);
-
-        // Generate the salt
-        byte[] salt = new byte[16];
-        new SecureRandom().nextBytes(salt);
-
-        // Create the key and the spec
-        SecretKeySpec key = DeriveKey.deriveKey(masterPassword, salt);
         GCMParameterSpec spec = new GCMParameterSpec(128, nonce);
 
         // Creates the "encrypt/decrypt machine"
@@ -37,7 +30,6 @@ public class SaveLogic {
         System.arraycopy(encrypted, 0, combined, salt.length + nonce.length, encrypted.length);
 
         // Write the combination to the vault
-        Path file = Path.of("vault.dat");
-        Files.write(file, combined);
+        Files.write(Path.of("vault.dat"), combined);
     }
 }

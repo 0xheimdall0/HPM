@@ -10,8 +10,10 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.List;
+import javax.crypto.spec.SecretKeySpec;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
@@ -21,7 +23,8 @@ public class HPMUI {
     // Fields and buttons
     private final PWDGenOptions opt = new PWDGenOptions();
     private final List<PasswordEntry> entries = new ArrayList<>();
-    private String sessionPassword = null;
+    private SecretKeySpec sessionKey = null;
+    private byte[] sessionSalt = null;
 
     private final JFrame frame = new JFrame("HPM - Heimdall's password manager");
     private final JPasswordField passwordField = new JPasswordField(24);
@@ -82,7 +85,7 @@ public class HPMUI {
                 " all your other passwords. It is highly advised not to store it online. Do not share it with anyone.");
         String pwd = null;
         while (pwd == null) pwd = promptNewPassword("Create master password");
-        sessionPassword = pwd;
+        setNewMasterKey(pwd);
         entries.clear();
         autoSave();
         setUnlocked(true);
@@ -187,7 +190,7 @@ public class HPMUI {
         autoLockBox.addActionListener(_ -> {
             autoLockEnabled = autoLockBox.isSelected();
             autoLockTime.setEnabled(autoLockEnabled);
-            if (autoLockEnabled && sessionPassword != null) autoLockTimer.restart();
+            if (autoLockEnabled && sessionKey != null) autoLockTimer.restart();
             else autoLockTimer.stop();
             saveSettings();
         });
@@ -268,7 +271,7 @@ public class HPMUI {
     }
 
     private void autoSave() {
-        try { SaveLogic.save(entries, sessionPassword); }
+        try { SaveLogic.save(entries, sessionKey, sessionSalt); }
         catch (Exception err) { JOptionPane.showMessageDialog(frame, "Data could not be saved."); }
     }
 
@@ -337,9 +340,11 @@ public class HPMUI {
     private void onUnlock() {
         String masterPassword = new String(passwordField.getPassword());
         try {
+            VaultData data = LoadLogic.load(masterPassword);
             entries.clear();
-            entries.addAll(LoadLogic.load(masterPassword));
-            sessionPassword = masterPassword;
+            entries.addAll(data.entries());
+            sessionKey  = data.key();
+            sessionSalt = data.salt();
             refreshList();
             setUnlocked(true);
             passwordField.setText("");
@@ -487,7 +492,8 @@ public class HPMUI {
         entries.clear();
         listModel.clear();
         passwordField.setText("");
-        sessionPassword = null;
+        sessionKey = null;
+        sessionSalt = null;
         setUnlocked(false);
     }
 
@@ -507,13 +513,13 @@ public class HPMUI {
     private void onChangePassword() {
         String pwd = promptNewPassword("Change master password");
         if (pwd == null) return;
-        sessionPassword = pwd;
+        setNewMasterKey(pwd);
         autoSave();
         JOptionPane.showMessageDialog(frame, "Master password successfully changed.");
     }
 
     private void onSecurityCheck() {
-        if (sessionPassword == null) {
+        if (sessionKey == null) {
             JOptionPane.showMessageDialog(frame, "Please unlock the vault first.");
             return;
         }
@@ -542,7 +548,7 @@ public class HPMUI {
         JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Security check", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    // Utility
+    // Utility and helpers
     private boolean vaultExists() {
         try {
             Path file = Path.of("vault.dat");
@@ -601,6 +607,13 @@ public class HPMUI {
         if (pw.matches(".*[0-9].*")) classes++;   // has a digit
         if (pw.matches(".*[^a-zA-Z0-9].*")) classes++;  // has a symbol
         return classes;
+    }
+
+    private void setNewMasterKey(String pw) {
+        byte[] salt = new byte[16];
+        new SecureRandom().nextBytes(salt);
+        sessionSalt = salt;
+        sessionKey = DeriveKey.deriveKey(pw, salt);
     }
 
     // Persistence handlers

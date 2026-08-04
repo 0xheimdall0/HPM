@@ -40,4 +40,5 @@ build/
 
 ### Heimdall's Vault APP ###
 vault.dat
+vault.dat.tmp
 notes.txt

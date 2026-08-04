@@ -3,6 +3,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.util.List;
 
@@ -32,6 +33,9 @@ public class SaveLogic {
         System.arraycopy(encrypted, 0, combined, 1 + salt.length + nonce.length, encrypted.length);
 
         // Write the combination to the vault
-        Files.write(Path.of("vault.dat"), combined);
+        Path file = Path.of("vault.dat");
+        Path temp = Path.of("vault.dat.tmp");
+        Files.write(temp, combined);
+        Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
     }
 }

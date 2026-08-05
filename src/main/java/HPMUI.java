@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.List;
+import javax.crypto.AEADBadTagException;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.*;
 import javax.swing.Timer;
@@ -426,14 +427,13 @@ public class HPMUI {
             saveSettings();
             passwordField.setText("");
             JOptionPane.showMessageDialog(frame, "Unlocked! " + entries.size() + " entries loaded.");
-        } catch (Exception err) {
-            loginAttempts++;
-            saveSettings();
-            if (loginAttempts >= lockoutThreshold) { lockOutTemporarily(); }
-            else {
-                JOptionPane.showMessageDialog(frame, "Wrong password!");
-                passwordField.setText("");
-            }
+        } catch (AEADBadTagException wrong) {
+            loginAttempts++; saveSettings();
+            if (loginAttempts >= lockoutThreshold) lockOutTemporarily();
+            else JOptionPane.showMessageDialog(frame, "Wrong password!");
+        } catch (Exception corrupt) {
+            JOptionPane.showMessageDialog(frame, "The vault could not be read:\n" + corrupt.getMessage() +
+                    "\n\nThis usually means that your vault.dat file is corrupted.");
         } finally {
             Arrays.fill(pw, '\0');
             passwordField.setText("");

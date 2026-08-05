@@ -29,6 +29,10 @@ public class LoadLogic {
         byte version = fromFile[0];
         if (version != 1) throw new Exception("Unsupported vault version: " + version);
 
+        if (fromFile.length < 29) {
+            throw new Exception("Vault file is truncated or corrupted.");
+        }
+
         byte[] loadedSalt = Arrays.copyOfRange(fromFile, 1, 17);
         byte[] loadedNonce = Arrays.copyOfRange(fromFile, 17, 29);
         byte[] cipherText = Arrays.copyOfRange(fromFile, 29, fromFile.length);

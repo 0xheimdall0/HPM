@@ -30,6 +30,7 @@ public class GoogleAuthMigration {
             int wireType = (int) (tag & 0x7);
             if (field == 1 && wireType == 2) {
                 int len = (int) readVarint(payload, pos);
+                if (len < 0 || pos[0] + len > payload.length) throw new Exception("Malformed migration data");
                 byte[] sub = Arrays.copyOfRange(payload, pos[0], pos[0] + len);
                 pos[0] += len;
                 accounts.add(parseAccount(sub));
@@ -80,7 +81,11 @@ public class GoogleAuthMigration {
     private static void skipField(byte[] data, int[] pos, int wireType) {
         switch(wireType) {
             case 0 -> readVarint(data, pos);
-            case 2 -> { int len = (int) readVarint(data, pos); pos[0] += len; }
+            case 2 -> {
+                int len = (int) readVarint(data, pos);
+                if (len < 0 || pos[0] + len > data.length) throw new RuntimeException("Malformed migration data");
+                pos[0] += len;
+            }
             case 5 -> pos[0] += 4;
             case 1 -> pos[0] += 8;
             default -> throw new RuntimeException("Unknown wire type: " + wireType);

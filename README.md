@@ -59,6 +59,14 @@ jpackage --type app-image --name HPM --input input \
   --main-jar HPM-1.0.jar --main-class HPMUI --icon input/HPM.ico --dest dist
 ```
 
+## Preview
+### Vault
+![Vault](src/main/resources/vault.png)
+### Generator
+![Generator](src/main/resources/generator.png)
+### Settings
+![Settings](src/main/resources/settings.png)
+
 ## Usage
 
 1. On first launch, create a master password (you'll be asked to confirm it).

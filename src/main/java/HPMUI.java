@@ -46,10 +46,23 @@ public class HPMUI {
     private final JButton lockBtn      = new JButton("Lock");
     private final JButton changePwdBtn = new JButton("Change master password");
     private final JButton importTotpBtn = new JButton("Import 2FA (QR)");
+    private final JButton breachCheckBtn = new JButton("Check for breaches on HaveIBeenPwned");
+
+    private final JButton navVault = new JButton("Vault");
+    private final JButton navGen = new JButton("Generator");
+    private final JButton navSettings = new JButton("Settings");
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel contentArea = new JPanel(cardLayout);
 
     private boolean autoLockEnabled = false;
     private int autoLockMinutes = 5;
     private Timer autoLockTimer;
+    private int loginAttempts = 0;
+    private int lockoutThreshold = 3;
+    private boolean lockoutExponential = false;
+    private boolean lockOnMinimize = false;
+    private boolean lockOnFocusLoss = false;
+    private int clipboardClearSeconds = 20;
 
     public static void main(String[] args) {
         FlatDarculaLaf.setup();
@@ -66,6 +79,7 @@ public class HPMUI {
         buildNavigation(vaultPanel, generatorPanel, settingsPanel);
         wireHandlers();
         setupAutoLock();
+        setupWindowLock();
         setUnlocked(false);
         frame.setVisible(true);
         passwordField.requestFocusInWindow();
@@ -85,9 +99,10 @@ public class HPMUI {
     private void firstRunSetup() {
         JOptionPane.showMessageDialog(frame, "Welcome to HPM. Please setup a secure password that will protect" +
                 " all your other passwords. It is highly advised not to store it online. Do not share it with anyone.");
-        String pwd = null;
+        char[] pwd = null;
         while (pwd == null) pwd = promptNewPassword("Create master password");
         setNewMasterKey(pwd);
+        Arrays.fill(pwd, '\0');
         entries.clear();
         autoSave();
         setUnlocked(true);
@@ -153,6 +168,7 @@ public class HPMUI {
             opt.useNumbers       = numbersBox.isSelected();
             opt.useSymbols       = symbolBox.isSelected();
             opt.excludeAmbiguous = ambiguousBox.isSelected();
+            saveSettings();
         };
         lowerBox.addActionListener(_ -> syncOptions.run());
         upperBox.addActionListener(_ -> syncOptions.run());
@@ -206,6 +222,33 @@ public class HPMUI {
             saveSettings();
         });
 
+        JSpinner autoClipboardClear = new JSpinner(new SpinnerNumberModel(clipboardClearSeconds, 1, 120, 1));
+        autoClipboardClear.addChangeListener(_ -> {
+            clipboardClearSeconds = (int) autoClipboardClear.getValue();
+            saveSettings();
+        });
+
+        breachCheckBtn.addActionListener(_ -> onBreachCheck());
+
+        JSpinner lockoutSpinner = new JSpinner(new SpinnerNumberModel(lockoutThreshold, 1, 10, 1));
+        lockoutSpinner.addChangeListener(_ -> {
+            lockoutThreshold = (int) lockoutSpinner.getValue();
+            saveSettings();
+        });
+
+        JComboBox<String> lockoutMode = new JComboBox<>(new String[]{"Linear", "Exponential"});
+        lockoutMode.setSelectedItem(lockoutExponential ? "Exponential" : "Linear");
+        lockoutMode.addActionListener(_ -> {
+            lockoutExponential = Objects.equals(lockoutMode.getSelectedItem(), "Exponential");
+            saveSettings();
+        });
+
+        JCheckBox minimizeLock = new JCheckBox("Lock on minimize", lockOnMinimize);
+        minimizeLock.addActionListener(_ -> { lockOnMinimize = minimizeLock.isSelected(); saveSettings(); });
+
+        JCheckBox focusLossLock = new JCheckBox("Lock on focus loss", lockOnFocusLoss);
+        focusLossLock.addActionListener(_ -> { lockOnFocusLoss = focusLossLock.isSelected(); saveSettings(); });
+
         JButton migrateGoogleAuthTotpBtn = new JButton("Migrate TOTP from Google Auth");
         migrateGoogleAuthTotpBtn.addActionListener(_ -> onImportGoogleAuth());
 
@@ -215,8 +258,17 @@ public class HPMUI {
         JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
         content.add(new JLabel("Utility"));
         content.add(migrateGoogleAuthTotpBtn);
+        content.add(new JLabel("Clear clipboard after (seconds):"));
+        content.add(autoClipboardClear);
         content.add(new JLabel("Security"));
+        content.add(new JLabel("Lock out after N failed attempts:"));
+        content.add(lockoutSpinner);
+        content.add(new JLabel("Lockout growth:"));
+        content.add(lockoutMode);
+        content.add(minimizeLock);
+        content.add(focusLossLock);
         content.add(changePwdBtn);
+        content.add(breachCheckBtn);
         content.add(autoLockBox);
         content.add(new JLabel("Auto-lock after (minutes):"));
         content.add(autoLockTime);
@@ -229,15 +281,10 @@ public class HPMUI {
     }
 
     private void buildNavigation(JPanel vaultPanel, JPanel generatorPanel, JPanel settingPanel) {
-        CardLayout cardLayout = new CardLayout();
-        JPanel contentArea = new JPanel(cardLayout);
         contentArea.add(vaultPanel, "Vault");
         contentArea.add(generatorPanel, "Generator");
         contentArea.add(settingPanel, "Settings");
 
-        JButton navVault = new JButton("Vault");
-        JButton navGen = new JButton("Generator");
-        JButton navSettings = new JButton("Settings");
         navVault.addActionListener(_ -> cardLayout.show(contentArea, "Vault"));
         navGen.addActionListener(_ -> cardLayout.show(contentArea, "Generator"));
         navSettings.addActionListener(_ -> cardLayout.show(contentArea, "Settings"));
@@ -266,6 +313,9 @@ public class HPMUI {
         changePwdBtn.setEnabled(unlocked);
         unlockBtn.setEnabled(!unlocked);
         importTotpBtn.setEnabled(unlocked);
+        navGen.setEnabled(unlocked);
+        navSettings.setEnabled(unlocked);
+        navVault.setEnabled(unlocked);
         if (unlocked && autoLockEnabled) autoLockTimer.restart();
         else autoLockTimer.stop();
     }
@@ -284,7 +334,7 @@ public class HPMUI {
         catch (Exception err) { JOptionPane.showMessageDialog(frame, "Data could not be saved."); }
     }
 
-    private String promptNewPassword(String title) {
+    private char[] promptNewPassword(String title) {
         JPasswordField pwd1 = new JPasswordField(20);
         JPasswordField pwd2 = new JPasswordField(20);
         JPanel panel = new JPanel(new GridLayout(0, 1, 1, 5));
@@ -296,10 +346,11 @@ public class HPMUI {
         int result = JOptionPane.showConfirmDialog(frame, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result != JOptionPane.OK_OPTION) return null;
 
-        String p1 = new String(pwd1.getPassword());
-        String p2 = new String(pwd2.getPassword());
-        if (p1.isBlank()) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
-        if (!p2.equals(p1)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
+        char[] p1 = pwd1.getPassword();
+        char[] p2 = pwd2.getPassword();
+        if (p1.length == 0) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
+        if (!java.util.Arrays.equals(p1, p2)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
+        java.util.Arrays.fill(p2, '\0');   // wipe the confirm copy
         return p1;
     }
 
@@ -336,7 +387,7 @@ public class HPMUI {
     private void autoClearCopy(String password) {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(new StringSelection(password), null);
-        Timer timer = new Timer(20000, _ -> {
+        Timer timer = new Timer(clipboardClearSeconds * 1000, _ -> {
             try {
                 String current = (String) clipboard.getData(DataFlavor.stringFlavor);
                 if (current.equals(password)) clipboard.setContents(new StringSelection(""), null);
@@ -344,23 +395,32 @@ public class HPMUI {
         });
         timer.setRepeats(false);
         timer.start();
-        JOptionPane.showMessageDialog(frame, "Copied. Clipboard clears in 20s if untouched.");
+        JOptionPane.showMessageDialog(frame, "Copied. Clipboard clears in " + clipboardClearSeconds + " if untouched.");
     }
 
     private void onUnlock() {
-        String masterPassword = new String(passwordField.getPassword());
+        char[] pw = passwordField.getPassword();
         try {
-            VaultData data = LoadLogic.load(masterPassword);
+            VaultData data = LoadLogic.load(pw);
             entries.clear();
             entries.addAll(data.entries());
             sessionKey  = data.key();
             sessionSalt = data.salt();
             refreshList();
             setUnlocked(true);
+            loginAttempts = 0;
             passwordField.setText("");
             JOptionPane.showMessageDialog(frame, "Unlocked! " + entries.size() + " entries loaded.");
         } catch (Exception err) {
-            JOptionPane.showMessageDialog(frame, "Wrong password!");
+            loginAttempts++;
+            if (loginAttempts >= lockoutThreshold) {
+                lockOutTemporarily();
+            } else {
+                JOptionPane.showMessageDialog(frame, "Wrong password!");
+                passwordField.setText("");
+            }
+        } finally {
+            Arrays.fill(pw, '\0');
             passwordField.setText("");
         }
     }
@@ -505,6 +565,7 @@ public class HPMUI {
         sessionKey = null;
         sessionSalt = null;
         setUnlocked(false);
+        cardLayout.show(contentArea, "Vault");
     }
 
     private void onSort() {
@@ -521,7 +582,7 @@ public class HPMUI {
     }
 
     private void onChangePassword() {
-        String pwd = promptNewPassword("Change master password");
+        char[] pwd = promptNewPassword("Change master password");
         if (pwd == null) return;
         setNewMasterKey(pwd);
         autoSave();
@@ -560,7 +621,7 @@ public class HPMUI {
 
     private void onImportTotpQR() {
         PasswordEntry selected = entriesDisplay.getSelectedValue();
-        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); };
+        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); return; };
 
         JFileChooser chooser = new JFileChooser();
         if (chooser.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) return;
@@ -601,6 +662,53 @@ public class HPMUI {
         } catch (Exception err) {
             JOptionPane.showMessageDialog(frame, "Could not import accounts from that QR code.");
         }
+    }
+
+    private void onBreachCheck() {
+        int confirm = JOptionPane.showConfirmDialog(frame,
+                "This sends a short hash prefix of each password to the HaveIBeenPwned API over the internet.\n" +
+                        "Your actual passwords never leave your device. Continue?",
+                "Online breach check",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        breachCheckBtn.setEnabled(false);
+        breachCheckBtn.setText("Checking...");
+
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // runs OFF the UI thread — safe to do slow network calls here
+                Map<String, Integer> cache = new HashMap<>();
+                StringBuilder report = new StringBuilder();
+                for (PasswordEntry e : entries) {
+                    if (e.password.isBlank()) continue;
+                    Integer count = cache.get(e.password);      // dedupe identical passwords
+                    if (count == null) {
+                        count = BreachCheck.timesPwned(e.password);
+                        cache.put(e.password, count);
+                    }
+                    if (count > 0) report.append(e.label).append(" — found in ").append(count).append(" breaches\n");
+                }
+                return report.isEmpty() ? "No breached passwords found." : report.toString();
+            }
+
+            @Override
+            protected void done() {
+                // runs ON the UI thread — safe to touch Swing
+                try {
+                    String result = get();
+                    JTextArea area = new JTextArea(result, 12, 48);
+                    area.setEditable(false);
+                    JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Breach check", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(frame, "Breach check failed (check your connection).");
+                }
+                breachCheckBtn.setText("Check all for breaches");
+                breachCheckBtn.setEnabled(true);
+            }
+        }.execute();
     }
 
     // Utility and helpers
@@ -664,7 +772,7 @@ public class HPMUI {
         return classes;
     }
 
-    private void setNewMasterKey(String pw) {
+    private void setNewMasterKey(char[] pw) {
         byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);
         sessionSalt = salt;
@@ -681,6 +789,44 @@ public class HPMUI {
         return null;
     }
 
+    private void lockOutTemporarily() {
+        int over = loginAttempts - lockoutThreshold;
+        int seconds = lockoutExponential ? 5 * (int) Math.pow(2, 2 * over) : 5 * (over + 1);
+
+        unlockBtn.setEnabled(false);
+        passwordField.setEnabled(false);
+
+        Timer t = new Timer(seconds * 1000, _ -> {
+            unlockBtn.setEnabled(true);
+            passwordField.setEnabled(true);
+        });
+        t.setRepeats(false);
+        t.start();
+
+        JOptionPane.showMessageDialog(frame, "Too many failed login attempts. You are locked out for " + seconds + " seconds.",
+                "Locked out", JOptionPane.WARNING_MESSAGE);
+    }
+
+    private void setupWindowLock() {
+        WindowAdapter guard = new WindowAdapter() {
+            @Override
+            public void windowIconified(WindowEvent e) {
+                if (lockOnMinimize && sessionKey != null) onLock();
+            }
+            @Override
+            public void windowLostFocus(WindowEvent e) {
+                if (!lockOnFocusLoss || sessionKey == null || e.getOppositeWindow() != null) return;
+                SwingUtilities.invokeLater(() -> {
+                    if (sessionKey != null && (frame.getExtendedState() & Frame.ICONIFIED) == 0) {
+                        onLock();
+                    }
+                });
+            }
+        };
+        frame.addWindowListener(guard);
+        frame.addWindowFocusListener(guard);
+    }
+
     // Persistence handlers
     private void loadSettings() {
         Path file = Path.of("settings.properties");
@@ -688,15 +834,37 @@ public class HPMUI {
         Properties props = new Properties();
         try (var in = Files.newInputStream(file)) {
             props.load(in);
-            autoLockEnabled = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
-            autoLockMinutes = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
+            autoLockEnabled         = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
+            autoLockMinutes         = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
+            opt.length              = Integer.parseInt(props.getProperty("genLength", "16"));
+            opt.useLower            = Boolean.parseBoolean(props.getProperty("genLower", "true"));
+            opt.useUpper            = Boolean.parseBoolean(props.getProperty("genUpper", "true"));
+            opt.useNumbers          = Boolean.parseBoolean(props.getProperty("genNumbers", "true"));
+            opt.useSymbols          = Boolean.parseBoolean(props.getProperty("genSymbols", "true"));
+            opt.excludeAmbiguous    = Boolean.parseBoolean(props.getProperty("genAmbiguous", "false"));
+            lockoutThreshold        = Integer.parseInt(props.getProperty("lockoutThreshold", "3"));
+            lockoutExponential      = Boolean.parseBoolean(props.getProperty("lockoutExponential", "false"));
+            lockOnFocusLoss         = Boolean.parseBoolean(props.getProperty("lockOnFocusLoss", "false"));
+            lockOnMinimize          = Boolean.parseBoolean(props.getProperty("lockOnMinimize", "false"));
+            clipboardClearSeconds   = Integer.parseInt(props.getProperty("autoClearClipboard", "20"));
         } catch (Exception _) { }
     }
 
     private void saveSettings() {
         Properties props = new Properties();
-        props.setProperty("autoLockEnabled", String.valueOf(autoLockEnabled));
-        props.setProperty("autoLockMinutes", String.valueOf(autoLockMinutes));
+        props.setProperty("autoLockEnabled",    String.valueOf(autoLockEnabled));
+        props.setProperty("autoLockMinutes",    String.valueOf(autoLockMinutes));
+        props.setProperty("genLength",          String.valueOf(opt.length));
+        props.setProperty("genLower",           String.valueOf(opt.useLower));
+        props.setProperty("genUpper",           String.valueOf(opt.useUpper));
+        props.setProperty("genNumbers",         String.valueOf(opt.useNumbers));
+        props.setProperty("genSymbols",         String.valueOf(opt.useSymbols));
+        props.setProperty("genAmbiguous",       String.valueOf(opt.excludeAmbiguous));
+        props.setProperty("lockoutThreshold",   String.valueOf(lockoutThreshold));
+        props.setProperty("lockoutExponential", String.valueOf(lockoutExponential));
+        props.setProperty("lockOnMinimize",     String.valueOf(lockOnMinimize));
+        props.setProperty("lockOnFocusLoss",    String.valueOf(lockOnFocusLoss));
+        props.setProperty("autoClearClipboard", String.valueOf(clipboardClearSeconds));
         try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }

@@ -15,17 +15,20 @@ public class BreachCheck {
         String hash = sb.toString();
 
         String prefix = hash.substring(0, 5);
-        String suffis = hash.substring(5);
+        String suffix = hash.substring(5);
 
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(5))
+                .build();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://api.pwnedpasswords.com/range/" + prefix))
+                .timeout(java.time.Duration.ofSeconds(10))
                 .build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
         for (String line : response.body().split("\n")) {
             String[] parts = line.trim().split(":");
-            if (parts[0].equalsIgnoreCase(suffis)) {
+            if (parts[0].equalsIgnoreCase(suffix)) {
                 return Integer.parseInt(parts[1]);
             }
         }

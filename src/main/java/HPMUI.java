@@ -62,6 +62,7 @@ public class HPMUI {
     private boolean lockoutExponential = false;
     private boolean lockOnMinimize = false;
     private boolean lockOnFocusLoss = false;
+    private int clipboardClearSeconds = 20;
 
     public static void main(String[] args) {
         FlatDarculaLaf.setup();
@@ -221,6 +222,12 @@ public class HPMUI {
             saveSettings();
         });
 
+        JSpinner autoClipboardClear = new JSpinner(new SpinnerNumberModel(clipboardClearSeconds, 1, 120, 1));
+        autoClipboardClear.addChangeListener(_ -> {
+            clipboardClearSeconds = (int) autoClipboardClear.getValue();
+            saveSettings();
+        });
+
         breachCheckBtn.addActionListener(_ -> onBreachCheck());
 
         JSpinner lockoutSpinner = new JSpinner(new SpinnerNumberModel(lockoutThreshold, 1, 10, 1));
@@ -232,7 +239,7 @@ public class HPMUI {
         JComboBox<String> lockoutMode = new JComboBox<>(new String[]{"Linear", "Exponential"});
         lockoutMode.setSelectedItem(lockoutExponential ? "Exponential" : "Linear");
         lockoutMode.addActionListener(_ -> {
-            lockoutExponential = lockoutMode.getSelectedItem().equals("Exponential");
+            lockoutExponential = Objects.equals(lockoutMode.getSelectedItem(), "Exponential");
             saveSettings();
         });
 
@@ -251,6 +258,8 @@ public class HPMUI {
         JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
         content.add(new JLabel("Utility"));
         content.add(migrateGoogleAuthTotpBtn);
+        content.add(new JLabel("Clear clipboard after (seconds):"));
+        content.add(autoClipboardClear);
         content.add(new JLabel("Security"));
         content.add(new JLabel("Lock out after N failed attempts:"));
         content.add(lockoutSpinner);
@@ -378,7 +387,7 @@ public class HPMUI {
     private void autoClearCopy(String password) {
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(new StringSelection(password), null);
-        Timer timer = new Timer(20000, _ -> {
+        Timer timer = new Timer(clipboardClearSeconds * 1000, _ -> {
             try {
                 String current = (String) clipboard.getData(DataFlavor.stringFlavor);
                 if (current.equals(password)) clipboard.setContents(new StringSelection(""), null);
@@ -386,7 +395,7 @@ public class HPMUI {
         });
         timer.setRepeats(false);
         timer.start();
-        JOptionPane.showMessageDialog(frame, "Copied. Clipboard clears in 20s if untouched.");
+        JOptionPane.showMessageDialog(frame, "Copied. Clipboard clears in " + clipboardClearSeconds + " if untouched.");
     }
 
     private void onUnlock() {
@@ -825,18 +834,19 @@ public class HPMUI {
         Properties props = new Properties();
         try (var in = Files.newInputStream(file)) {
             props.load(in);
-            autoLockEnabled      = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
-            autoLockMinutes      = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
-            opt.length           = Integer.parseInt(props.getProperty("genLength", "16"));
-            opt.useLower         = Boolean.parseBoolean(props.getProperty("genLower", "true"));
-            opt.useUpper         = Boolean.parseBoolean(props.getProperty("genUpper", "true"));
-            opt.useNumbers       = Boolean.parseBoolean(props.getProperty("genNumbers", "true"));
-            opt.useSymbols       = Boolean.parseBoolean(props.getProperty("genSymbols", "true"));
-            opt.excludeAmbiguous = Boolean.parseBoolean(props.getProperty("genAmbiguous", "false"));
-            lockoutThreshold     = Integer.parseInt(props.getProperty("lockoutThreshold", "3"));
-            lockoutExponential   = Boolean.parseBoolean(props.getProperty("lockoutExponential", "false"));
-            lockOnFocusLoss      = Boolean.parseBoolean(props.getProperty("lockOnFocusLoss", "false"));
-            lockOnMinimize       = Boolean.parseBoolean(props.getProperty("lockOnMinimize", "false"));
+            autoLockEnabled         = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
+            autoLockMinutes         = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
+            opt.length              = Integer.parseInt(props.getProperty("genLength", "16"));
+            opt.useLower            = Boolean.parseBoolean(props.getProperty("genLower", "true"));
+            opt.useUpper            = Boolean.parseBoolean(props.getProperty("genUpper", "true"));
+            opt.useNumbers          = Boolean.parseBoolean(props.getProperty("genNumbers", "true"));
+            opt.useSymbols          = Boolean.parseBoolean(props.getProperty("genSymbols", "true"));
+            opt.excludeAmbiguous    = Boolean.parseBoolean(props.getProperty("genAmbiguous", "false"));
+            lockoutThreshold        = Integer.parseInt(props.getProperty("lockoutThreshold", "3"));
+            lockoutExponential      = Boolean.parseBoolean(props.getProperty("lockoutExponential", "false"));
+            lockOnFocusLoss         = Boolean.parseBoolean(props.getProperty("lockOnFocusLoss", "false"));
+            lockOnMinimize          = Boolean.parseBoolean(props.getProperty("lockOnMinimize", "false"));
+            clipboardClearSeconds   = Integer.parseInt(props.getProperty("autoClearClipboard", "20"));
         } catch (Exception _) { }
     }
 
@@ -854,6 +864,7 @@ public class HPMUI {
         props.setProperty("lockoutExponential", String.valueOf(lockoutExponential));
         props.setProperty("lockOnMinimize",     String.valueOf(lockOnMinimize));
         props.setProperty("lockOnFocusLoss",    String.valueOf(lockOnFocusLoss));
+        props.setProperty("autoClearClipboard", String.valueOf(clipboardClearSeconds));
         try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }

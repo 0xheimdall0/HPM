@@ -26,7 +26,6 @@ public class HPMUI {
     private final List<PasswordEntry> entries = new ArrayList<>();
     private SecretKeySpec sessionKey = null;
     private byte[] sessionSalt = null;
-    private int loginAttempts = 0;
 
     private final JFrame frame = new JFrame("HPM - Heimdall's password manager");
     private final JPasswordField passwordField = new JPasswordField(24);
@@ -56,6 +55,11 @@ public class HPMUI {
     private boolean autoLockEnabled = false;
     private int autoLockMinutes = 5;
     private Timer autoLockTimer;
+    private int loginAttempts = 0;
+    private int lockoutThreshold = 3;
+    private boolean lockoutExponential = false;
+    private boolean lockOnMinimize = false;
+    private boolean lockOnFocusLoss = false;
 
     public static void main(String[] args) {
         FlatDarculaLaf.setup();
@@ -72,6 +76,7 @@ public class HPMUI {
         buildNavigation(vaultPanel, generatorPanel, settingsPanel);
         wireHandlers();
         setupAutoLock();
+        setupWindowLock();
         setUnlocked(false);
         frame.setVisible(true);
         passwordField.requestFocusInWindow();
@@ -216,6 +221,25 @@ public class HPMUI {
 
         breachCheckBtn.addActionListener(_ -> onBreachCheck());
 
+        JSpinner lockoutSpinner = new JSpinner(new SpinnerNumberModel(lockoutThreshold, 1, 10, 1));
+        lockoutSpinner.addChangeListener(_ -> {
+            lockoutThreshold = (int) lockoutSpinner.getValue();
+            saveSettings();
+        });
+
+        JComboBox<String> lockoutMode = new JComboBox<>(new String[]{"Linear", "Exponential"});
+        lockoutMode.setSelectedItem(lockoutExponential ? "Exponential" : "Linear");
+        lockoutMode.addActionListener(_ -> {
+            lockoutExponential = lockoutMode.getSelectedItem().equals("Exponential");
+            saveSettings();
+        });
+
+        JCheckBox minimizeLock = new JCheckBox("Lock on minimize", lockOnMinimize);
+        minimizeLock.addActionListener(_ -> { lockOnMinimize = minimizeLock.isSelected(); saveSettings(); });
+
+        JCheckBox focusLossLock = new JCheckBox("Lock on focus loss", lockOnFocusLoss);
+        focusLossLock.addActionListener(_ -> { lockOnFocusLoss = focusLossLock.isSelected(); saveSettings(); });
+
         JButton migrateGoogleAuthTotpBtn = new JButton("Migrate TOTP from Google Auth");
         migrateGoogleAuthTotpBtn.addActionListener(_ -> onImportGoogleAuth());
 
@@ -226,6 +250,12 @@ public class HPMUI {
         content.add(new JLabel("Utility"));
         content.add(migrateGoogleAuthTotpBtn);
         content.add(new JLabel("Security"));
+        content.add(new JLabel("Lock out after N failed attempts:"));
+        content.add(lockoutSpinner);
+        content.add(new JLabel("Lockout growth:"));
+        content.add(lockoutMode);
+        content.add(minimizeLock);
+        content.add(focusLossLock);
         content.add(changePwdBtn);
         content.add(breachCheckBtn);
         content.add(autoLockBox);
@@ -374,7 +404,7 @@ public class HPMUI {
             JOptionPane.showMessageDialog(frame, "Unlocked! " + entries.size() + " entries loaded.");
         } catch (Exception err) {
             loginAttempts++;
-            if (loginAttempts >= 3) {
+            if (loginAttempts >= lockoutThreshold) {
                 lockOutTemporarily();
             } else {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
@@ -750,17 +780,41 @@ public class HPMUI {
     }
 
     private void lockOutTemporarily() {
-        int seconds = (loginAttempts - 2) * 5;
+        int over = loginAttempts - lockoutThreshold;
+        int seconds = lockoutExponential ? 5 * (int) Math.pow(2, 2 * over) : 5 * (over + 1);
+
         unlockBtn.setEnabled(false);
         passwordField.setEnabled(false);
+
         Timer t = new Timer(seconds * 1000, _ -> {
             unlockBtn.setEnabled(true);
             passwordField.setEnabled(true);
         });
         t.setRepeats(false);
         t.start();
+
         JOptionPane.showMessageDialog(frame, "Too many failed login attempts. You are locked out for " + seconds + " seconds.",
                 "Locked out", JOptionPane.WARNING_MESSAGE);
+    }
+
+    private void setupWindowLock() {
+        WindowAdapter guard = new WindowAdapter() {
+            @Override
+            public void windowIconified(WindowEvent e) {
+                if (lockOnMinimize && sessionKey != null) onLock();
+            }
+            @Override
+            public void windowLostFocus(WindowEvent e) {
+                if (!lockOnFocusLoss || sessionKey == null || e.getOppositeWindow() != null) return;
+                SwingUtilities.invokeLater(() -> {
+                    if (sessionKey != null && (frame.getExtendedState() & frame.ICONIFIED) == 0) {
+                        onLock();
+                    }
+                });
+            }
+        };
+        frame.addWindowListener(guard);
+        frame.addWindowFocusListener(guard);
     }
 
     // Persistence handlers
@@ -778,19 +832,27 @@ public class HPMUI {
             opt.useNumbers       = Boolean.parseBoolean(props.getProperty("genNumbers", "true"));
             opt.useSymbols       = Boolean.parseBoolean(props.getProperty("genSymbols", "true"));
             opt.excludeAmbiguous = Boolean.parseBoolean(props.getProperty("genAmbiguous", "false"));
+            lockoutThreshold     = Integer.parseInt(props.getProperty("lockoutThreshold", "3"));
+            lockoutExponential   = Boolean.parseBoolean(props.getProperty("lockoutExponential", "false"));
+            lockOnFocusLoss      = Boolean.parseBoolean(props.getProperty("lockOnFocusLoss", "false"));
+            lockOnMinimize       = Boolean.parseBoolean(props.getProperty("lockOnMinimize", "false"));
         } catch (Exception _) { }
     }
 
     private void saveSettings() {
         Properties props = new Properties();
-        props.setProperty("autoLockEnabled", String.valueOf(autoLockEnabled));
-        props.setProperty("autoLockMinutes", String.valueOf(autoLockMinutes));
-        props.setProperty("genLength",       String.valueOf(opt.length));
-        props.setProperty("genLower",        String.valueOf(opt.useLower));
-        props.setProperty("genUpper",        String.valueOf(opt.useUpper));
-        props.setProperty("genNumbers",      String.valueOf(opt.useNumbers));
-        props.setProperty("genSymbols",      String.valueOf(opt.useSymbols));
-        props.setProperty("genAmbiguous",    String.valueOf(opt.excludeAmbiguous));
+        props.setProperty("autoLockEnabled",    String.valueOf(autoLockEnabled));
+        props.setProperty("autoLockMinutes",    String.valueOf(autoLockMinutes));
+        props.setProperty("genLength",          String.valueOf(opt.length));
+        props.setProperty("genLower",           String.valueOf(opt.useLower));
+        props.setProperty("genUpper",           String.valueOf(opt.useUpper));
+        props.setProperty("genNumbers",         String.valueOf(opt.useNumbers));
+        props.setProperty("genSymbols",         String.valueOf(opt.useSymbols));
+        props.setProperty("genAmbiguous",       String.valueOf(opt.excludeAmbiguous));
+        props.setProperty("lockoutThreshold",   String.valueOf(lockoutThreshold));
+        props.setProperty("lockoutExponential", String.valueOf(lockoutExponential));
+        props.setProperty("lockOnMinimize",     String.valueOf(lockOnMinimize));
+        props.setProperty("lockOnFocusLoss",    String.valueOf(lockOnFocusLoss));
         try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }

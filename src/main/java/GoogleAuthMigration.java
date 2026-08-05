@@ -51,6 +51,7 @@ public class GoogleAuthMigration {
             int wireType = (int) (tag & 0x7);
             if (wireType == 2) {
                 int len = (int) readVarint(data, pos);
+                if (len < 0 || pos[0] + len > data.length) throw new RuntimeException("Malformed migration data");
                 byte[] value = Arrays.copyOfRange(data, pos[0], pos[0] + len);
                 pos[0] += len;
                 switch (field) {
@@ -70,6 +71,7 @@ public class GoogleAuthMigration {
         long result = 0;
         int shift = 0;
         while (true) {
+            if (pos[0] >= data.length) throw new RuntimeException("Malformed migration data");
             byte b = data[pos[0]++];
             result |= (long) (b & 0x7F) << shift;
             if ((b & 0x80) == 0) break;

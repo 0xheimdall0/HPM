@@ -927,10 +927,9 @@ public class HPMUI {
         props.setProperty("autoClearClipboard", String.valueOf(clipboardClearSeconds));
         props.setProperty("loginAttempts",     String.valueOf(loginAttempts));
         props.setProperty("lockedUntil",        String.valueOf(lockedUntil));
-        Path path = Path.of("settings.properties");
-        try (var out = Files.newOutputStream(path)) {
+        try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }
-        SaveLogic.restrictPermissions(path);
+        SaveLogic.restrictPermissions(Path.of("settings.properties"));
     }
 }

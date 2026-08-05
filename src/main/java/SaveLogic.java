@@ -34,13 +34,9 @@ public class SaveLogic {
         System.arraycopy(nonce, 0, combined, 1 + salt.length, nonce.length);
         System.arraycopy(encrypted, 0, combined, 1 + salt.length + nonce.length, encrypted.length);
 
-        // Write the combination to the vault
+        // Write the combination to the vault, restricting access before it ever lands at its final name
         Path file = Path.of("vault.dat");
         Path temp = Path.of("vault.dat.tmp");
-        Files.write(temp, combined);
-        Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
-
-        // Restrict access to the vault
         Files.write(temp, combined);
         restrictPermissions(temp);
         Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);

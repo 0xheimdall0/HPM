@@ -68,6 +68,8 @@ public class HPMUI {
     private long lockedUntil = 0;
 
     public static void main(String[] args) {
+        System.setProperty("flatlaf.useWindowDecorations", "true");
+        System.setProperty("flatlaf.menuBarEmbedded", "true");
         FlatDarculaLaf.setup();
         SwingUtilities.invokeLater(HPMUI::new);
     }
@@ -93,6 +95,20 @@ public class HPMUI {
 
     // Initial build methods
     private void buildFrame() {
+        JMenuBar menuBar = new JMenuBar();
+        menuBar.add(Box.createHorizontalGlue());
+
+        JButton help = new JButton("?");
+        help.putClientProperty("JButton.buttonType", "toolBarButton");
+        help.setFocusable(false);
+        help.setToolTipText("Help");
+        help.addActionListener(_ -> onHelp());
+
+        menuBar.add(help);
+        frame.setJMenuBar(menuBar);
+
+        var logo = getClass().getResource("/HPM.jpg");
+        if (logo != null) frame.setIconImage(new ImageIcon(logo).getImage());
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1000, 600);
         frame.setLayout(new BorderLayout());
@@ -257,31 +273,41 @@ public class HPMUI {
         JButton migrateGoogleAuthTotpBtn = new JButton("Migrate TOTP from Google Auth");
         migrateGoogleAuthTotpBtn.addActionListener(_ -> onImportGoogleAuth());
 
-        JButton securityCheckBtn = new JButton("Security check");
+        JButton securityCheckBtn = new JButton("Passwords security check");
         securityCheckBtn.addActionListener(_ -> onSecurityCheck());
 
+        JButton aboutBtn = new JButton("About");
+        aboutBtn.addActionListener(_ -> onAbout());
+
         JPanel content = new JPanel(new GridLayout(0, 1, 1, 5));
-        content.add(new JLabel("Utility"));
+        content.add(sectionLabel("Utility"));
         content.add(migrateGoogleAuthTotpBtn);
-        content.add(new JLabel("Clear clipboard after (seconds):"));
-        content.add(autoClipboardClear);
-        content.add(new JLabel("Security"));
+        content.add(sectionLabel("Security"));
+        content.add(minimizeLock);
+        content.add(focusLossLock);
+        content.add(autoLockBox);
+        content.add(new JLabel("Auto-lock after (minutes):"));
+        content.add(autoLockTime);
         content.add(new JLabel("Lock out after N failed attempts:"));
         content.add(lockoutSpinner);
         content.add(new JLabel("Lockout growth:"));
         content.add(lockoutMode);
-        content.add(minimizeLock);
-        content.add(focusLossLock);
+        content.add(new JLabel("Clear clipboard after (seconds):"));
+        content.add(autoClipboardClear);
         content.add(changePwdBtn);
         content.add(breachCheckBtn);
-        content.add(autoLockBox);
-        content.add(new JLabel("Auto-lock after (minutes):"));
-        content.add(autoLockTime);
         content.add(securityCheckBtn);
+        content.add(sectionLabel("Other"));
+        content.add(aboutBtn);
+
+        content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JScrollPane scroll = new JScrollPane(content);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
 
         JPanel settingsPanel = new JPanel(new BorderLayout());
-        settingsPanel.add(content, BorderLayout.NORTH);
-        settingsPanel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        settingsPanel.add(scroll, BorderLayout.CENTER);
         return settingsPanel;
     }
 
@@ -732,6 +758,56 @@ public class HPMUI {
         }.execute();
     }
 
+    private void onHelp() {
+        String help = """
+        HPM — Heimdall's Password Manager
+
+        UNLOCK / LOCK
+        • Type your master password and press Enter (or Unlock) to open the vault.
+        • Lock clears the vault from memory. Auto-lock can trigger on inactivity, minimize, or focus loss (Settings).
+
+        ENTRIES
+        • Add / Edit / Delete entries. Edit also sets an entry's 2FA secret.
+        • Show / Copy password act on the selected entry; double-click an entry to copy.
+        • Copied passwords auto-clear from the clipboard (delay configurable in Settings).
+
+        SEARCH & SORT
+        • Search filters by label or username. The dropdown sorts A–Z / Z–A.
+
+        TWO-FACTOR (TOTP)
+        • 2FA: set a Base32 secret or view the live 6-digit code.
+        • Import 2FA (QR): read a secret from a QR image onto the selected entry.
+        • Import Google Auth: bulk-import all accounts from a Google Authenticator export QR.
+
+        GENERATOR (tab)
+        • Pick length and character sets; these become the defaults for new-entry generation.
+
+        SETTINGS (tab)
+        • Change master password (requires the current one).
+        • Auto-lock timer; lock on minimize / focus loss.
+        • Failed-attempt lockout: threshold + linear/exponential back-off.
+        • Clipboard-clear delay.
+        • Security check (weak / reused passwords) and breach check (HaveIBeenPwned).
+
+        SECURITY
+        • Vault encrypted with AES-GCM under an Argon2 key from your master password.
+        • The master password is never stored — if you forget it, the vault cannot be recovered.
+        """;
+        JTextArea area = new JTextArea(help, 24, 60);
+        area.setEditable(false);
+        area.setCaretPosition(0);
+        JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Help", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void onAbout() {
+        JOptionPane.showMessageDialog(frame,
+                "HPM — Heimdall's Password Manager\nVersion 1.0\n\n" +
+                        "A local, zero-knowledge-style encrypted password manager.\n" +
+                        "Argon2 + AES-GCM. Your data never leaves your device.\n\n" +
+                        "© 2026 Heimdall · MIT License",
+                "About HPM", JOptionPane.INFORMATION_MESSAGE);
+    }
+
     // Utility and helpers
     private boolean vaultExists() {
         try {
@@ -883,6 +959,12 @@ public class HPMUI {
         } finally {
             Arrays.fill(pwd, '\0');
         }
+    }
+
+    private JLabel sectionLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(label.getFont().deriveFont(Font.BOLD, 28f));   // bold, size 16
+        return label;
     }
 
     // Persistence handlers

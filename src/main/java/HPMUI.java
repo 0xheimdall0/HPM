@@ -48,9 +48,11 @@ public class HPMUI {
     private final JButton importTotpBtn = new JButton("Import 2FA (QR)");
     private final JButton breachCheckBtn = new JButton("Check for breaches on HaveIBeenPwned");
 
-    JButton navVault = new JButton("Vault");
-    JButton navGen = new JButton("Generator");
-    JButton navSettings = new JButton("Settings");
+    private final JButton navVault = new JButton("Vault");
+    private final JButton navGen = new JButton("Generator");
+    private final JButton navSettings = new JButton("Settings");
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel contentArea = new JPanel(cardLayout);
 
     private boolean autoLockEnabled = false;
     private int autoLockMinutes = 5;
@@ -270,8 +272,6 @@ public class HPMUI {
     }
 
     private void buildNavigation(JPanel vaultPanel, JPanel generatorPanel, JPanel settingPanel) {
-        CardLayout cardLayout = new CardLayout();
-        JPanel contentArea = new JPanel(cardLayout);
         contentArea.add(vaultPanel, "Vault");
         contentArea.add(generatorPanel, "Generator");
         contentArea.add(settingPanel, "Settings");
@@ -556,6 +556,7 @@ public class HPMUI {
         sessionKey = null;
         sessionSalt = null;
         setUnlocked(false);
+        cardLayout.show(contentArea, "Vault");
     }
 
     private void onSort() {
@@ -807,7 +808,7 @@ public class HPMUI {
             public void windowLostFocus(WindowEvent e) {
                 if (!lockOnFocusLoss || sessionKey == null || e.getOppositeWindow() != null) return;
                 SwingUtilities.invokeLater(() -> {
-                    if (sessionKey != null && (frame.getExtendedState() & frame.ICONIFIED) == 0) {
+                    if (sessionKey != null && (frame.getExtendedState() & Frame.ICONIFIED) == 0) {
                         onLock();
                     }
                 });

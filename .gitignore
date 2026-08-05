@@ -43,3 +43,4 @@ vault.dat
 vault.dat.tmp
 notes.txt
 dependency-reduced-pom.xml
+settings.properties

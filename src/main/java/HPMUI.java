@@ -11,6 +11,7 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.List;
@@ -351,9 +352,18 @@ public class HPMUI {
 
         char[] p1 = pwd1.getPassword();
         char[] p2 = pwd2.getPassword();
-        if (p1.length == 0) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
-        if (!java.util.Arrays.equals(p1, p2)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
-        java.util.Arrays.fill(p2, '\0');   // wipe the confirmation copy
+        if (!Arrays.equals(p1, p2)) {
+            JOptionPane.showMessageDialog(frame, "Password must match.");
+            Arrays.fill(p1, '\0'); Arrays.fill(p2, '\0');
+            return null;
+        }
+        if (!isStrongMaster(p1)) {
+            JOptionPane.showMessageDialog(frame, "Password too weak: must be at least 16 character long, include"
+            + " one lowercase, one uppercase, one digit and one symbol.");
+            Arrays.fill(p1, '\0'); Arrays.fill(p2, '\0');
+            return null;
+        }
+        Arrays.fill(p2, '\0');
         return p1;
     }
 
@@ -587,9 +597,14 @@ public class HPMUI {
     }
 
     private void onChangePassword() {
+        Boolean ok = verifyCurrentMaster();
+        if (ok == null) return;
+        if (!ok) { JOptionPane.showMessageDialog(frame, "Current password incorrect."); return; }
+
         char[] pwd = promptNewPassword("Change master password");
         if (pwd == null) return;
         setNewMasterKey(pwd);
+        Arrays.fill(pwd, '\0');
         autoSave();
         JOptionPane.showMessageDialog(frame, "Master password successfully changed.");
     }
@@ -838,6 +853,34 @@ public class HPMUI {
         };
         frame.addWindowListener(guard);
         frame.addWindowFocusListener(guard);
+    }
+
+    private boolean isStrongMaster(char[] pwd) {
+        if (pwd.length < 16) return false;
+        boolean lower = false, upper = false, number = false, symbol = false;
+        for (char c : pwd) {
+            if (Character.isLowerCase(c)) lower = true;
+            else if (Character.isUpperCase(c)) upper = true;
+            else if (Character.isDigit(c)) number = true;
+            else symbol = true;
+        }
+        int classes = (lower?1:0) + (upper?1:0) + (number?1:0) + (symbol?1:0);
+        return classes == 4;
+    }
+
+    public Boolean verifyCurrentMaster() {
+        JPasswordField currentMaster = new JPasswordField(20);
+        int r = JOptionPane.showConfirmDialog(frame, currentMaster, "Enter current master password",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (r != JOptionPane.OK_OPTION) return null;
+
+        char[] pwd = currentMaster.getPassword();
+        try {
+            SecretKeySpec testKey = DeriveKey.deriveKey(pwd, sessionSalt);
+            return MessageDigest.isEqual(testKey.getEncoded(), sessionKey.getEncoded());
+        } finally {
+            Arrays.fill(pwd, '\0');
+        }
     }
 
     // Persistence handlers

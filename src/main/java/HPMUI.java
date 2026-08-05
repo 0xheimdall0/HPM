@@ -26,6 +26,7 @@ public class HPMUI {
     private final List<PasswordEntry> entries = new ArrayList<>();
     private SecretKeySpec sessionKey = null;
     private byte[] sessionSalt = null;
+    private int loginAttempts = 0;
 
     private final JFrame frame = new JFrame("HPM - Heimdall's password manager");
     private final JPasswordField passwordField = new JPasswordField(24);
@@ -46,6 +47,11 @@ public class HPMUI {
     private final JButton lockBtn      = new JButton("Lock");
     private final JButton changePwdBtn = new JButton("Change master password");
     private final JButton importTotpBtn = new JButton("Import 2FA (QR)");
+    private final JButton breachCheckBtn = new JButton("Check for breaches on HaveIBeenPwned");
+
+    JButton navVault = new JButton("Vault");
+    JButton navGen = new JButton("Generator");
+    JButton navSettings = new JButton("Settings");
 
     private boolean autoLockEnabled = false;
     private int autoLockMinutes = 5;
@@ -154,6 +160,7 @@ public class HPMUI {
             opt.useNumbers       = numbersBox.isSelected();
             opt.useSymbols       = symbolBox.isSelected();
             opt.excludeAmbiguous = ambiguousBox.isSelected();
+            saveSettings();
         };
         lowerBox.addActionListener(_ -> syncOptions.run());
         upperBox.addActionListener(_ -> syncOptions.run());
@@ -207,6 +214,8 @@ public class HPMUI {
             saveSettings();
         });
 
+        breachCheckBtn.addActionListener(_ -> onBreachCheck());
+
         JButton migrateGoogleAuthTotpBtn = new JButton("Migrate TOTP from Google Auth");
         migrateGoogleAuthTotpBtn.addActionListener(_ -> onImportGoogleAuth());
 
@@ -218,6 +227,7 @@ public class HPMUI {
         content.add(migrateGoogleAuthTotpBtn);
         content.add(new JLabel("Security"));
         content.add(changePwdBtn);
+        content.add(breachCheckBtn);
         content.add(autoLockBox);
         content.add(new JLabel("Auto-lock after (minutes):"));
         content.add(autoLockTime);
@@ -236,9 +246,6 @@ public class HPMUI {
         contentArea.add(generatorPanel, "Generator");
         contentArea.add(settingPanel, "Settings");
 
-        JButton navVault = new JButton("Vault");
-        JButton navGen = new JButton("Generator");
-        JButton navSettings = new JButton("Settings");
         navVault.addActionListener(_ -> cardLayout.show(contentArea, "Vault"));
         navGen.addActionListener(_ -> cardLayout.show(contentArea, "Generator"));
         navSettings.addActionListener(_ -> cardLayout.show(contentArea, "Settings"));
@@ -267,6 +274,9 @@ public class HPMUI {
         changePwdBtn.setEnabled(unlocked);
         unlockBtn.setEnabled(!unlocked);
         importTotpBtn.setEnabled(unlocked);
+        navGen.setEnabled(unlocked);
+        navSettings.setEnabled(unlocked);
+        navVault.setEnabled(unlocked);
         if (unlocked && autoLockEnabled) autoLockTimer.restart();
         else autoLockTimer.stop();
     }
@@ -359,11 +369,17 @@ public class HPMUI {
             sessionSalt = data.salt();
             refreshList();
             setUnlocked(true);
+            loginAttempts = 0;
             passwordField.setText("");
             JOptionPane.showMessageDialog(frame, "Unlocked! " + entries.size() + " entries loaded.");
         } catch (Exception err) {
-            JOptionPane.showMessageDialog(frame, "Wrong password!");
-            passwordField.setText("");
+            loginAttempts++;
+            if (loginAttempts >= 3) {
+                lockOutTemporarily();
+            } else {
+                JOptionPane.showMessageDialog(frame, "Wrong password!");
+                passwordField.setText("");
+            }
         } finally {
             Arrays.fill(pw, '\0');
             passwordField.setText("");
@@ -565,7 +581,7 @@ public class HPMUI {
 
     private void onImportTotpQR() {
         PasswordEntry selected = entriesDisplay.getSelectedValue();
-        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); };
+        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); return; };
 
         JFileChooser chooser = new JFileChooser();
         if (chooser.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) return;
@@ -606,6 +622,53 @@ public class HPMUI {
         } catch (Exception err) {
             JOptionPane.showMessageDialog(frame, "Could not import accounts from that QR code.");
         }
+    }
+
+    private void onBreachCheck() {
+        int confirm = JOptionPane.showConfirmDialog(frame,
+                "This sends a short hash prefix of each password to the HaveIBeenPwned API over the internet.\n" +
+                        "Your actual passwords never leave your device. Continue?",
+                "Online breach check",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        breachCheckBtn.setEnabled(false);
+        breachCheckBtn.setText("Checking...");
+
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // runs OFF the UI thread — safe to do slow network calls here
+                Map<String, Integer> cache = new HashMap<>();
+                StringBuilder report = new StringBuilder();
+                for (PasswordEntry e : entries) {
+                    if (e.password.isBlank()) continue;
+                    Integer count = cache.get(e.password);      // dedupe identical passwords
+                    if (count == null) {
+                        count = BreachCheck.timesPwned(e.password);
+                        cache.put(e.password, count);
+                    }
+                    if (count > 0) report.append(e.label).append(" — found in ").append(count).append(" breaches\n");
+                }
+                return report.isEmpty() ? "No breached passwords found." : report.toString();
+            }
+
+            @Override
+            protected void done() {
+                // runs ON the UI thread — safe to touch Swing
+                try {
+                    String result = get();
+                    JTextArea area = new JTextArea(result, 12, 48);
+                    area.setEditable(false);
+                    JOptionPane.showMessageDialog(frame, new JScrollPane(area), "Breach check", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(frame, "Breach check failed (check your connection).");
+                }
+                breachCheckBtn.setText("Check all for breaches");
+                breachCheckBtn.setEnabled(true);
+            }
+        }.execute();
     }
 
     // Utility and helpers
@@ -686,6 +749,20 @@ public class HPMUI {
         return null;
     }
 
+    private void lockOutTemporarily() {
+        int seconds = (loginAttempts - 2) * 5;
+        unlockBtn.setEnabled(false);
+        passwordField.setEnabled(false);
+        Timer t = new Timer(seconds * 1000, _ -> {
+            unlockBtn.setEnabled(true);
+            passwordField.setEnabled(true);
+        });
+        t.setRepeats(false);
+        t.start();
+        JOptionPane.showMessageDialog(frame, "Too many failed login attempts. You are locked out for " + seconds + " seconds.",
+                "Locked out", JOptionPane.WARNING_MESSAGE);
+    }
+
     // Persistence handlers
     private void loadSettings() {
         Path file = Path.of("settings.properties");
@@ -693,8 +770,14 @@ public class HPMUI {
         Properties props = new Properties();
         try (var in = Files.newInputStream(file)) {
             props.load(in);
-            autoLockEnabled = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
-            autoLockMinutes = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
+            autoLockEnabled      = Boolean.parseBoolean(props.getProperty("autoLockEnabled", "false"));
+            autoLockMinutes      = Integer.parseInt(props.getProperty("autoLockMinutes", "5"));
+            opt.length           = Integer.parseInt(props.getProperty("genLength", "16"));
+            opt.useLower         = Boolean.parseBoolean(props.getProperty("genLower", "true"));
+            opt.useUpper         = Boolean.parseBoolean(props.getProperty("genUpper", "true"));
+            opt.useNumbers       = Boolean.parseBoolean(props.getProperty("genNumbers", "true"));
+            opt.useSymbols       = Boolean.parseBoolean(props.getProperty("genSymbols", "true"));
+            opt.excludeAmbiguous = Boolean.parseBoolean(props.getProperty("genAmbiguous", "false"));
         } catch (Exception _) { }
     }
 
@@ -702,6 +785,12 @@ public class HPMUI {
         Properties props = new Properties();
         props.setProperty("autoLockEnabled", String.valueOf(autoLockEnabled));
         props.setProperty("autoLockMinutes", String.valueOf(autoLockMinutes));
+        props.setProperty("genLength",       String.valueOf(opt.length));
+        props.setProperty("genLower",        String.valueOf(opt.useLower));
+        props.setProperty("genUpper",        String.valueOf(opt.useUpper));
+        props.setProperty("genNumbers",      String.valueOf(opt.useNumbers));
+        props.setProperty("genSymbols",      String.valueOf(opt.useSymbols));
+        props.setProperty("genAmbiguous",    String.valueOf(opt.excludeAmbiguous));
         try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }

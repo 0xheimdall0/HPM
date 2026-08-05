@@ -63,6 +63,7 @@ public class HPMUI {
     private boolean lockOnMinimize = false;
     private boolean lockOnFocusLoss = false;
     private int clipboardClearSeconds = 20;
+    private long lockedUntil = 0;
 
     public static void main(String[] args) {
         FlatDarculaLaf.setup();
@@ -83,6 +84,8 @@ public class HPMUI {
         setUnlocked(false);
         frame.setVisible(true);
         passwordField.requestFocusInWindow();
+        long remaining = lockedUntil - System.currentTimeMillis();
+        if (remaining > 0) beginLockout(remaining / 1000L + 1);
         if (!vaultExists()) firstRunSetup();
     }
 
@@ -350,7 +353,7 @@ public class HPMUI {
         char[] p2 = pwd2.getPassword();
         if (p1.length == 0) { JOptionPane.showMessageDialog(frame, "Password cannot be empty."); return null; }
         if (!java.util.Arrays.equals(p1, p2)) { JOptionPane.showMessageDialog(frame, "Passwords must match."); return null; }
-        java.util.Arrays.fill(p2, '\0');   // wipe the confirm copy
+        java.util.Arrays.fill(p2, '\0');   // wipe the confirmation copy
         return p1;
     }
 
@@ -409,13 +412,15 @@ public class HPMUI {
             refreshList();
             setUnlocked(true);
             loginAttempts = 0;
+            lockedUntil = 0;
+            saveSettings();
             passwordField.setText("");
             JOptionPane.showMessageDialog(frame, "Unlocked! " + entries.size() + " entries loaded.");
         } catch (Exception err) {
             loginAttempts++;
-            if (loginAttempts >= lockoutThreshold) {
-                lockOutTemporarily();
-            } else {
+            saveSettings();
+            if (loginAttempts >= lockoutThreshold) { lockOutTemporarily(); }
+            else {
                 JOptionPane.showMessageDialog(frame, "Wrong password!");
                 passwordField.setText("");
             }
@@ -621,7 +626,7 @@ public class HPMUI {
 
     private void onImportTotpQR() {
         PasswordEntry selected = entriesDisplay.getSelectedValue();
-        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); return; };
+        if (selected == null) { JOptionPane.showMessageDialog(frame, "No entry is selected."); return; }
 
         JFileChooser chooser = new JFileChooser();
         if (chooser.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) return;
@@ -634,7 +639,6 @@ public class HPMUI {
                 JOptionPane.showMessageDialog(frame, "No 2FA secret found in that QR code.");
                 return;
             }
-            assert selected != null;
             selected.TOTPsecret = secret;
             autoSave();
             JOptionPane.showMessageDialog(frame, "2FA secret imported for " + selected.label + ".");
@@ -791,12 +795,21 @@ public class HPMUI {
 
     private void lockOutTemporarily() {
         int over = loginAttempts - lockoutThreshold;
-        int seconds = lockoutExponential ? 5 * (int) Math.pow(2, 2 * over) : 5 * (over + 1);
-
+        long seconds;
+        if (lockoutExponential) {
+            seconds = 5L * (1L << Math.min(2 * over, 20));
+        } else {
+            seconds = 5L * (over + 1);
+        }
+        seconds = Math.min(seconds, 220752000);
+        lockedUntil = System.currentTimeMillis() + seconds * 1000L;
+        saveSettings();
+        beginLockout(seconds);
+    }
+    private void beginLockout(long seconds) {
         unlockBtn.setEnabled(false);
         passwordField.setEnabled(false);
-
-        Timer t = new Timer(seconds * 1000, _ -> {
+        Timer t = new Timer((int) (seconds * 1000L), _ -> {
             unlockBtn.setEnabled(true);
             passwordField.setEnabled(true);
         });
@@ -847,6 +860,8 @@ public class HPMUI {
             lockOnFocusLoss         = Boolean.parseBoolean(props.getProperty("lockOnFocusLoss", "false"));
             lockOnMinimize          = Boolean.parseBoolean(props.getProperty("lockOnMinimize", "false"));
             clipboardClearSeconds   = Integer.parseInt(props.getProperty("autoClearClipboard", "20"));
+            loginAttempts          = Integer.parseInt(props.getProperty("loginAttempts", "0"));
+            lockedUntil             = Long.parseLong(props.getProperty("lockedUntil", "0"));
         } catch (Exception _) { }
     }
 
@@ -865,6 +880,8 @@ public class HPMUI {
         props.setProperty("lockOnMinimize",     String.valueOf(lockOnMinimize));
         props.setProperty("lockOnFocusLoss",    String.valueOf(lockOnFocusLoss));
         props.setProperty("autoClearClipboard", String.valueOf(clipboardClearSeconds));
+        props.setProperty("loginAttempts",     String.valueOf(loginAttempts));
+        props.setProperty("lockedUntil",        String.valueOf(lockedUntil));
         try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }

@@ -43,8 +43,11 @@ public class LoadLogic {
         cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, loadedNonce));
         byte[] decrypted = cipher.doFinal(cipherText);
 
+        String json = new String(decrypted, java.nio.charset.StandardCharsets.UTF_8);
+        java.util.Arrays.fill(decrypted, (byte) 0);
+
         Type listType = new TypeToken<List<PasswordEntry>>(){}.getType();
-        List<PasswordEntry> loadedEntries = new Gson().fromJson(new String(decrypted), listType);
+        List<PasswordEntry> loadedEntries = new Gson().fromJson(json, listType);
 
         return new VaultData(loadedEntries, key, loadedSalt);
     }

@@ -695,15 +695,17 @@ public class HPMUI {
         breachCheckBtn.setEnabled(false);
         breachCheckBtn.setText("Checking...");
 
+        List<PasswordEntry> snapshot = new ArrayList<>(entries);
+
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
-                // runs OFF the UI thread — safe to do slow network calls here
+                // runs OFF the UI thread, it is then safe to do slow network calls here
                 Map<String, Integer> cache = new HashMap<>();
                 StringBuilder report = new StringBuilder();
-                for (PasswordEntry e : entries) {
+                for (PasswordEntry e : snapshot) {
                     if (e.password.isBlank()) continue;
-                    Integer count = cache.get(e.password);      // dedupe identical passwords
+                    Integer count = cache.get(e.password);
                     if (count == null) {
                         count = BreachCheck.timesPwned(e.password);
                         cache.put(e.password, count);
@@ -715,7 +717,7 @@ public class HPMUI {
 
             @Override
             protected void done() {
-                // runs ON the UI thread — safe to touch Swing
+                // runs ON the UI thread, it is then safe to touch Swing
                 try {
                     String result = get();
                     JTextArea area = new JTextArea(result, 12, 48);
@@ -925,8 +927,10 @@ public class HPMUI {
         props.setProperty("autoClearClipboard", String.valueOf(clipboardClearSeconds));
         props.setProperty("loginAttempts",     String.valueOf(loginAttempts));
         props.setProperty("lockedUntil",        String.valueOf(lockedUntil));
-        try (var out = Files.newOutputStream(Path.of("settings.properties"))) {
+        Path path = Path.of("settings.properties");
+        try (var out = Files.newOutputStream(path)) {
             props.store(out, "HPM settings");
         } catch (Exception _) { }
+        SaveLogic.restrictPermissions(path);
     }
 }

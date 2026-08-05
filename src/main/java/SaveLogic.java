@@ -22,7 +22,9 @@ public class SaveLogic {
 
         // Sets the "machine" to "encrypt", encrypts the message and spits out the random bytes
         cipher.init(Cipher.ENCRYPT_MODE, key, spec);
-        byte[] encrypted = cipher.doFinal(plainText.getBytes());
+        byte[] plainBytes = plainText.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] encrypted = cipher.doFinal(plainBytes);
+        java.util.Arrays.fill(plainBytes, (byte) 0);
 
         // Save logic combines the nonce required to decrypt and the encrypted hash
         byte VERSION = 1;
@@ -37,5 +39,21 @@ public class SaveLogic {
         Path temp = Path.of("vault.dat.tmp");
         Files.write(temp, combined);
         Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+
+        // Restrict access to the vault
+        Files.write(temp, combined);
+        restrictPermissions(temp);
+        Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    static void restrictPermissions(Path path) {
+        try {
+            Files.setPosixFilePermissions(path,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | java.io.IOException e) {
+            java.io.File f = path.toFile();
+            f.setReadable(false, false);  f.setReadable(true, true);
+            f.setWritable(false, false);  f.setWritable(true, true);
+        }
     }
 }
